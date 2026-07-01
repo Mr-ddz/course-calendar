@@ -1,48 +1,39 @@
-# 📚 教师课程表
+# 📚 课程表
 
-一个简洁、美观的教师课程表管理工具，支持分钟级课程安排。
+教师上课课程表管理工具，支持多教师登录、数据隔离、分钟级课程安排。
 
 ## 技术栈
 
 - **前端**: Vue 3 + Element Plus + Axios + Vite
 - **后端**: Node.js + Express + SQLite3
 
-## 快速启动
+## 本地运行
 
-### 1. 启动后端（端口 3001）
+```bash
+# 1. 构建前端
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 2. 启动后端（同时提供页面和 API）
+cd backend
+npm install
+node server.js
+```
+
+浏览器打开 **http://localhost:3002**
+
+## 部署到服务器
+
+详见 [DEPLOY.md](DEPLOY.md)
+
+## 教师管理
 
 ```bash
 cd backend
-npm start
+node seed.js list                            # 查看所有教师
+node seed.js add "姓名" "用户名" "密码"       # 添加教师
+node seed.js delete <id>                      # 删除教师
+node seed.js reset-password "用户名" "新密码"  # 重置密码
 ```
-
-### 2. 启动前端（端口 5173）
-
-```bash
-cd frontend
-npm run dev
-```
-
-### 3. 访问
-
-浏览器打开 **http://localhost:5173/**
-
-## 功能特性
-
-- 📅 **日期切换** — 支持任意日期选择，自动滚动到当前时间
-- ⏰ **24小时时间轴** — 以小时为刻度，精确到分钟级别
-- ➕ **添加课程** — 点击时间轴空白区域快速添加
-- ✏️ **编辑课程** — 点击已有课程进行修改
-- 🗑️ **删除课程** — 编辑对话框中可直接删除
-- 🎨 **颜色标记** — 不同课程用不同颜色区分
-- 📝 **备注信息** — 每门课程可添加文字备注
-
-## API 接口
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/courses?date=YYYY-MM-DD` | 获取指定日期所有课程 |
-| GET | `/api/courses/range?start_date=&end_date=` | 获取日期范围课程 |
-| POST | `/api/courses` | 创建课程 |
-| PUT | `/api/courses/:id` | 更新课程 |
-| DELETE | `/api/courses/:id` | 删除课程 |

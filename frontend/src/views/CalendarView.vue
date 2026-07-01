@@ -2,7 +2,7 @@
   <div class="calendar-page">
     <header class="cal-header">
       <div class="cal-header-top">
-        <h1 class="cal-title">📚 教师课程表</h1>
+        <h1 class="cal-title">📚 {{ teacherName }}的课程表</h1>
         <div class="cal-user">
           <span class="cal-user-name">{{ teacherName }}</span>
           <el-button size="small" @click="handleLogout">退出</el-button>
@@ -137,13 +137,14 @@ async function handleLogout() {
       cancelButtonText: '取消',
       type: 'info'
     })
-    await logoutApi()
+    // 用户确认退出
+    try { await logoutApi() } catch { /* 忽略接口报错 */ }
+    localStorage.removeItem('token')
+    localStorage.removeItem('teacher')
+    router.push('/login')
   } catch {
-    // 不管接口成功失败，都清除本地 token
+    // 用户点了取消，什么都不做
   }
-  localStorage.removeItem('token')
-  localStorage.removeItem('teacher')
-  router.push('/login')
 }
 
 async function loadMonthCourses() {

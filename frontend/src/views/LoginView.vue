@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="login-title">📚 教师课程表</h1>
+      <h1 class="login-title">📚 上课啦</h1>
       <p class="login-subtitle">请登录以继续</p>
       <el-form
         ref="formRef"

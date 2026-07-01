@@ -4,7 +4,7 @@
     <header class="detail-header">
       <div class="detail-header-row">
         <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
-        <h1 class="detail-title">📚 教师课程表</h1>
+        <h1 class="detail-title">📚 {{ teacherName }}的课程表</h1>
         <div class="detail-user">
           <span class="detail-user-name">{{ teacherName }}</span>
           <el-button size="small" class="detail-logout-btn" @click="handleLogout">退出</el-button>
@@ -21,6 +21,10 @@
         <div class="detail-stats">
           <el-tag type="info" size="small">课程: {{ courses.length }}</el-tag>
           <el-tag type="success" size="small" style="margin-left:6px">{{ totalDuration }}</el-tag>
+          <el-divider direction="vertical" style="margin: 0 8px;" />
+          <span class="switch-label" :class="{ 'is-active': !hideStudentName }">姓名</span>
+          <el-switch v-model="hideStudentName" size="small" style="margin: 0 4px;" />
+          <span class="switch-label" :class="{ 'is-active': hideStudentName }">隐藏</span>
         </div>
       </div>
     </header>
@@ -53,8 +57,8 @@
         >
           <div class="course-inner" :style="{ backgroundColor: course.color + '20', borderLeftColor: course.color }">
             <div class="course-time">{{ course.start_time }} - {{ course.end_time }}</div>
-            <div class="course-student">{{ course.student_name }}</div>
-            <div v-if="course.description" class="course-desc">{{ course.description }}</div>
+            <div v-if="!hideStudentName" class="course-student">{{ course.student_name }}</div>
+            <div v-if="!hideStudentName && course.description" class="course-desc">{{ course.description }}</div>
           </div>
         </div>
 
@@ -161,6 +165,7 @@ const route = useRoute()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 
+const hideStudentName = ref(false)
 const dateStr = ref(route.params.date || dayjs().format('YYYY-MM-DD'))
 const courses = ref([])
 const dialogVisible = ref(false)
@@ -245,11 +250,13 @@ async function handleLogout() {
       cancelButtonText: '取消',
       type: 'info'
     })
-    await logoutApi()
-  } catch { /* 清除本地 token */ }
-  localStorage.removeItem('token')
-  localStorage.removeItem('teacher')
-  router.push('/login')
+    try { await logoutApi() } catch { /* 忽略接口报错 */ }
+    localStorage.removeItem('token')
+    localStorage.removeItem('teacher')
+    router.push('/login')
+  } catch {
+    // 用户点了取消，什么都不做
+  }
 }
 
 function changeDay(delta) {
@@ -497,6 +504,17 @@ onUnmounted(() => {
 }
 .detail-stats {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+.switch-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  transition: color 0.2s;
+}
+.switch-label.is-active {
+  color: #fff;
+  font-weight: 600;
 }
 
 /* 时间轴 - 同原有样式 */
@@ -551,18 +569,25 @@ onUnmounted(() => {
 }
 .course-inner {
   height: 100%; border-radius: 6px;
-  padding: 4px 10px; border-left: 4px solid;
+  padding: 2px 10px; border-left: 4px solid;
   display: flex; flex-direction: column;
-  justify-content: center; overflow: hidden;
+  overflow: hidden;
   transition: box-shadow 0.2s, transform 0.15s;
 }
 .course-inner:hover {
   box-shadow: 0 2px 12px rgba(0,0,0,0.12);
   transform: translateX(2px);
 }
-.course-time { font-size: 11px; color: #999; font-weight: 500; line-height: 1.4; }
-.course-student { font-size: 14px; font-weight: 600; color: #333; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.course-desc { font-size: 11px; color: #999; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.course-time {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px; color: #999;
+  font-weight: 500; line-height: 1.4;
+}
+.course-student { font-size: 14px; font-weight: 600; color: #333; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.course-desc { font-size: 11px; color: #999; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 
 .now-line {
   position: absolute; left: 0; right: 16px;
