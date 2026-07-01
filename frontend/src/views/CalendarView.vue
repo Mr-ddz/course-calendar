@@ -39,7 +39,7 @@
                   :key="si"
                   class="cal-student-tag"
                   :style="{ background: s.color + '30', color: s.color }"
-                >{{ s.name }} <span class="tag-time">{{ s.time }}</span></span>
+                ><span class="tag-name">{{ s.name }}</span><span v-if="s.teacherName" class="tag-teacher">{{ s.teacherName }}</span> <span class="tag-time">{{ s.time }}</span></span>
                 <span v-if="day.students.length > 4" class="cal-student-more">+{{ day.students.length - 4 }}</span>
               </div>
             </template>
@@ -111,7 +111,8 @@ function buildDay(dayNum, dateStr, isCurrentMonth) {
     .map(c => ({
       name: c.student_name,
       time: `${c.start_time}-${c.end_time}`,
-      color: c.color || '#409EFF'
+      color: c.color || '#409EFF',
+      teacherName: c.teacher_name || ''
     }))
   return { dayNum, dateStr, isCurrentMonth, students }
 }
@@ -309,6 +310,15 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
+}
+.tag-name {
+  font-weight: 600;
+}
+.tag-teacher {
+  font-weight: 400;
+  font-size: 9px;
+  opacity: 0.65;
+  margin-left: 2px;
 }
 .tag-time {
   font-weight: 400;

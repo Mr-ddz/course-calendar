@@ -95,16 +95,21 @@ app.get('/api/teachers', (req, res) => {
   res.json({ data: teachers });
 });
 
-// ========== 课程 CRUD（自动按教师隔离） ==========
+// ========== 课程 CRUD（admin 可以看到全部，普通老师只看自己） ==========
+const ADMIN_ID = 1;
+function isAdmin(user) { return user.id === ADMIN_ID; }
 
-// 获取指定日期的课程（只看自己的）
+// 获取指定日期的课程
 app.get('/api/courses', (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: '请提供日期参数 date (YYYY-MM-DD)' });
-    const courses = db.prepare(
-      `SELECT * FROM courses WHERE teacher_id = ? AND date = ? ORDER BY start_time ASC`
-    ).all(req.teacher.id, date);
+    let courses;
+    if (isAdmin(req.teacher)) {
+      courses = db.prepare(`SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE c.date = ? ORDER BY c.teacher_id, c.start_time ASC`).all(date);
+    } else {
+      courses = db.prepare(`SELECT * FROM courses WHERE teacher_id = ? AND date = ? ORDER BY start_time ASC`).all(req.teacher.id, date);
+    }
     res.json({ data: courses });
   } catch (err) {
     console.error('获取课程失败:', err);
@@ -112,16 +117,19 @@ app.get('/api/courses', (req, res) => {
   }
 });
 
-// 获取日期范围内的课程（只看自己的）
+// 获取日期范围内的课程
 app.get('/api/courses/range', (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) {
       return res.status(400).json({ error: '请提供 start_date 和 end_date 参数' });
     }
-    const courses = db.prepare(
-      `SELECT * FROM courses WHERE teacher_id = ? AND date BETWEEN ? AND ? ORDER BY date ASC, start_time ASC`
-    ).all(req.teacher.id, start_date, end_date);
+    let courses;
+    if (isAdmin(req.teacher)) {
+      courses = db.prepare(`SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE c.date BETWEEN ? AND ? ORDER BY c.date ASC, c.start_time ASC`).all(start_date, end_date);
+    } else {
+      courses = db.prepare(`SELECT * FROM courses WHERE teacher_id = ? AND date BETWEEN ? AND ? ORDER BY date ASC, start_time ASC`).all(req.teacher.id, start_date, end_date);
+    }
     res.json({ data: courses });
   } catch (err) {
     console.error('获取课程范围失败:', err);
@@ -148,11 +156,16 @@ app.post('/api/courses', (req, res) => {
   }
 });
 
-// 更新课程（只能改自己的）
+// 更新课程（admin 可改任何课程，普通老师只能改自己的）
 app.put('/api/courses/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    let existing;
+    if (isAdmin(req.teacher)) {
+      existing = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
+    } else {
+      existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
 
     const { student_name, date, start_time, end_time, color, description } = req.body;
@@ -176,11 +189,16 @@ app.put('/api/courses/:id', (req, res) => {
   }
 });
 
-// 删除课程（只能删自己的）
+// 删除课程（admin 可删任何课程，普通老师只能删自己的）
 app.delete('/api/courses/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    let existing;
+    if (isAdmin(req.teacher)) {
+      existing = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
+    } else {
+      existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
     db.prepare(`DELETE FROM courses WHERE id = ?`).run(id);
     res.json({ message: '删除成功' });

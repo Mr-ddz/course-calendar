@@ -57,7 +57,10 @@
         >
           <div class="course-inner" :style="{ backgroundColor: course.color + '20', borderLeftColor: course.color }">
             <div class="course-time">{{ course.start_time }} - {{ course.end_time }}</div>
-            <div v-if="!hideStudentName" class="course-student">{{ course.student_name }}</div>
+            <div v-if="!hideStudentName" class="course-student">
+              {{ course.student_name }}
+              <span v-if="course.teacher_name" class="course-teacher">（{{ course.teacher_name }}）</span>
+            </div>
             <div v-if="!hideStudentName && course.description" class="course-desc">{{ course.description }}</div>
           </div>
         </div>
@@ -587,6 +590,7 @@ onUnmounted(() => {
   font-weight: 500; line-height: 1.4;
 }
 .course-student { font-size: 14px; font-weight: 600; color: #333; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.course-teacher { font-size: 11px; font-weight: 400; opacity: 0.6; }
 .course-desc { font-size: 11px; color: #999; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 
 .now-line {
