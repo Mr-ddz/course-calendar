@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "教师课程表",
   "scripts": {
-    "build": "cd backend && npm install && cd ../frontend && npm install && npm run build",
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
     "start": "cd backend && node server.js",
     "dev:backend": "cd backend && node server.js",
     "dev:frontend": "cd frontend && npm run dev"

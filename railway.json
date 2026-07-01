@@ -3,6 +3,8 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && npm start"
+    "startCommand": "cd backend && node server.js",
+    "healthcheckPath": "/login",
+    "restartPolicyType": "ON_FAILURE"
   }
 }
