@@ -12,7 +12,8 @@ const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, 'schedule.db'));
+const DB_DIR = process.env.DB_DIR || __dirname;
+const db = new Database(path.join(DB_DIR, 'schedule.db'));
 
 const command = process.argv[2];
 
