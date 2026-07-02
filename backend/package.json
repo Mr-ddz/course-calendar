@@ -1,7 +1,7 @@
 {
   "name": "course-schedule-backend",
   "version": "1.0.0",
-  "description": "教师课程表后端服务",
+  "description": "课表侠后端服务",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

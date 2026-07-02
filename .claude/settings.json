@@ -31,7 +31,13 @@
       "Bash(git rm *)",
       "Bash(git remote *)",
       "Bash(git push *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" \"http://localhost:3002/statistics\")",
+      "Bash(curl -s -o /dev/null -w \"主页 %{http_code}\\\\n\" \"http://localhost:3002/\")",
+      "Bash(curl -s -o /dev/null -w \"统计 %{http_code}\\\\n\" \"http://localhost:3002/statistics\")",
+      "Bash(python3)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(grep -E '\\\\.db$|node_modules|dist|\\\\.claude' /Users/admin/Desktop/project/calendar/.gitignore)"
     ]
   }
 }

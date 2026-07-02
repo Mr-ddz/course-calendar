@@ -4,11 +4,23 @@
     <header class="detail-header">
       <div class="detail-header-row">
         <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
-        <h1 class="detail-title">📚 {{ teacherName }}的课程表</h1>
+        <h1 class="detail-title"><img src="../assets/images/logo.jpeg" class="title-icon" /> {{ teacherName }}的课程表</h1>
         <div class="detail-user">
           <span class="detail-user-name">{{ teacherName }}</span>
           <el-button size="small" class="detail-logout-btn" @click="handleLogout">退出</el-button>
         </div>
+      </div>
+      <div class="cal-tabs" style="margin-bottom: 8px; display: flex; gap: 6px;">
+        <el-button
+          size="small"
+          :type="$route.name === 'calendar' ? 'primary' : 'default'"
+          @click="$router.push('/')"
+        >📅 月历</el-button>
+        <el-button
+          size="small"
+          :type="$route.name === 'statistics' ? 'primary' : 'default'"
+          @click="$router.push('/statistics')"
+        >📊 统计</el-button>
       </div>
       <!-- 日导航 -->
       <div class="detail-nav">
@@ -28,6 +40,18 @@
         </div>
       </div>
     </header>
+
+    <!-- 分列头（admin 多教师重叠时显示） -->
+    <div v-if="laneHeaders.length > 0" class="lane-headers">
+      <div
+        v-for="h in laneHeaders"
+        :key="h.teacher"
+        class="lane-header"
+        :style="{ width: h.width + '%', left: h.left + '%' }"
+      >
+        {{ h.teacher }}
+      </div>
+    </div>
 
     <!-- 时间轴 -->
     <div class="timeline-wrapper" ref="timelineWrapper">
@@ -49,26 +73,33 @@
 
         <!-- 课程块 -->
         <div
-          v-for="course in courses"
+          v-for="course in displayCourses"
           :key="course.id"
           class="course-block"
+          :class="{ 'course-block--lane': course.laneCount > 1 }"
           :style="getCourseStyle(course)"
           @click.stop="editCourse(course)"
         >
           <div class="course-inner" :style="{ backgroundColor: course.color + '20', borderLeftColor: course.color }">
-            <div class="course-time">{{ course.start_time }} - {{ course.end_time }}</div>
-            <div v-if="!hideStudentName" class="course-student">
-              {{ course.student_name }}
-              <span v-if="course.teacher_name" class="course-teacher">（{{ course.teacher_name }}）</span>
+            <div class="course-time">
+              <span v-if="course.repeat_type === 'weekly'" class="repeat-badge">🔄每周</span>
+              {{ course.start_time }} - {{ course.end_time }}
             </div>
-            <div v-if="!hideStudentName && course.description" class="course-desc">{{ course.description }}</div>
+            <div v-if="!hideStudentName" class="course-student">
+              <span v-if="course.teacher_name && course.laneCount > 1" class="course-teacher">[{{ course.teacher_name }}] </span>
+              {{ course.student_name }}
+              <span v-if="course.teacher_name && course.laneCount <= 1" class="course-teacher">（{{ course.teacher_name }}）</span>
+            </div>
+            <div v-if="!hideStudentName" class="course-meta">
+              <span v-if="course.grade" class="meta-item">{{ course.grade }}</span>
+              <span v-if="course.hourly_fee" class="meta-item">{{ course.hourly_fee }}元/时</span>
+              <span class="meta-item" :class="course.attended ? 'meta-attended-yes' : 'meta-attended-no'">
+                {{ course.attended ? '✅已到' : '❌未到' }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div v-if="isToday && nowLineTop >= 0" class="now-line" :style="{ top: nowLineTop + 'px' }">
-          <div class="now-dot"></div>
-          <div class="now-label">{{ nowTimeStr }}</div>
-        </div>
       </div>
     </div>
 
@@ -83,7 +114,21 @@
     >
       <el-form :model="courseForm" label-width="80px" size="large">
         <el-form-item label="学生姓名" required label-for="student_name">
-          <el-input id="student_name" v-model="courseForm.student_name" placeholder="请输入学生姓名" />
+          <el-autocomplete
+            id="student_name"
+            v-model="courseForm.student_name"
+            :fetch-suggestions="queryStudents"
+            :trigger-on-focus="false"
+            placeholder="输入学生姓名搜索或新建"
+            value-key="name"
+            clearable
+            @select="onStudentSelect"
+            style="width: 100%"
+          >
+            <template #default="{ item }">
+              <div class="student-suggestion">{{ item.name }} <span v-if="item.grade" class="suggestion-grade">{{ item.grade }}</span></div>
+            </template>
+          </el-autocomplete>
         </el-form-item>
         <el-form-item label="日期" label-for="course_date">
           <el-date-picker
@@ -120,6 +165,36 @@
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item label="年级" required label-for="course_grade">
+          <el-select id="course_grade" v-model="courseForm.grade" placeholder="选择年级" style="width: 100%">
+            <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="课时费" required label-for="course_fee">
+          <el-input
+            id="course_fee"
+            v-model="courseForm.hourly_fee"
+            placeholder="只能输入数字"
+            type="number"
+            min="0"
+          >
+            <template #append>元</template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="重复" label-for="course_repeat">
+          <el-radio-group id="course_repeat" v-model="courseForm.repeat_type">
+            <el-radio value="none">不重复</el-radio>
+            <el-radio value="weekly">每周（{{ weekDayOfDate(courseForm.date) }}）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="签到" label-for="course_attended">
+          <el-switch
+            id="course_attended"
+            v-model="courseForm.attended"
+            active-text="已到课"
+            inactive-text="未到课"
+          />
+        </el-form-item>
         <el-form-item label="颜色" label-for="course_color">
           <el-color-picker id="course_color" v-model="courseForm.color" />
         </el-form-item>
@@ -147,7 +222,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
@@ -156,7 +231,8 @@ import {
   createCourse,
   updateCourse,
   deleteCourse as deleteCourseApi,
-  logout as logoutApi
+  logout as logoutApi,
+  getStudents
 } from '../api/index.js'
 
 const HOUR_HEIGHT = 64
@@ -167,6 +243,72 @@ const route = useRoute()
 // 当前教师
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
+const isAdmin = computed(() => teacherInfo.id === 1)
+
+// 处理课程显示：admin 遇到多教师时间重叠时，按老师分列
+const displayCourses = computed(() => {
+  const items = courses.value.map(c => ({ ...c }))
+  if (!isAdmin.value || items.length < 2) return items
+
+  // 按开始时间排序
+  items.sort((a, b) => a.start_time.localeCompare(b.start_time))
+
+  // 找出跨教师的时间重叠（两两比较），标记需要分列的课程
+  const needsLane = new Set()
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      // 判断是否重叠：A 在 B 结束前开始 且 A 在 B 开始后结束
+      const overlap = items[i].start_time < items[j].end_time && items[i].end_time > items[j].start_time
+      if (overlap && items[i].teacher_id !== items[j].teacher_id) {
+        needsLane.add(items[i].id)
+        needsLane.add(items[j].id)
+      }
+    }
+  }
+
+  if (needsLane.size === 0) return items
+
+  // 按 teacher_id 分配车道
+  const laneMap = {}
+  let laneIdx = 0
+  for (const c of items) {
+    if (needsLane.has(c.id) && !(c.teacher_id in laneMap)) {
+      laneMap[c.teacher_id] = laneIdx++
+    }
+  }
+  const laneCount = Object.keys(laneMap).length
+
+  for (const c of items) {
+    if (needsLane.has(c.id)) {
+      c.laneIndex = laneMap[c.teacher_id]
+      c.laneCount = laneCount
+    } else {
+      c.laneIndex = 0
+      c.laneCount = 1
+    }
+  }
+
+  return items
+})
+
+// 分列头：仅 admin 且有多列时显示
+const laneHeaders = computed(() => {
+  if (!isAdmin.value) return []
+  const laneTeachers = {}
+  for (const c of displayCourses.value) {
+    if (c.laneCount > 1 && c.teacher_name && !(c.laneIndex in laneTeachers)) {
+      laneTeachers[c.laneIndex] = c.teacher_name
+    }
+  }
+  const keys = Object.keys(laneTeachers)
+  if (keys.length < 2) return []
+  const count = keys.length
+  return keys.map(k => ({
+    teacher: laneTeachers[k],
+    left: (parseInt(k) / count) * 100,
+    width: 100 / count
+  }))
+})
 
 const hideStudentName = ref(false)
 const dateStr = ref(route.params.date || dayjs().format('YYYY-MM-DD'))
@@ -174,14 +316,13 @@ const courses = ref([])
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const editingId = ref(null)
+const editingRepeatGroupId = ref(null)
+const editingUpdateAllFuture = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 const timelineWrapper = ref(null)
 
 // 当前时间线
-const nowLineTop = ref(-1)
-const nowTimeStr = ref('')
-let nowTimer = null
 
 const todayStr = dayjs().format('YYYY-MM-DD')
 const isToday = computed(() => dateStr.value === todayStr)
@@ -204,14 +345,56 @@ const totalDuration = computed(() => {
   return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`
 })
 
+const gradeOptions = [
+  { id: 1, name: '一年级' },
+  { id: 2, name: '二年级' },
+  { id: 3, name: '三年级' },
+  { id: 4, name: '四年级' },
+  { id: 5, name: '五年级' },
+  { id: 6, name: '六年级' },
+  { id: 7, name: '初一' },
+  { id: 8, name: '初二' },
+  { id: 9, name: '初三' },
+  { id: 10, name: '高一' },
+  { id: 11, name: '高二' },
+  { id: 12, name: '高三' }
+]
+
+const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+function weekDayOfDate(dateStr) {
+  return weekDays[dayjs(dateStr).day()] || ''
+}
+
 function getDefaultForm() {
   return {
     student_name: '',
+    student_id: null,
     date: dateStr.value,
     startTime: '08:00',
     endTime: '09:00',
     color: '#409EFF',
-    description: ''
+    description: '',
+    grade: '',
+    hourly_fee: '',
+    attended: false,
+    repeat_type: 'none'
+  }
+}
+
+// 学生搜索（input 自动补全）
+async function queryStudents(query, cb) {
+  if (!query) return cb([])
+  try {
+    const res = await getStudents({ name: query })
+    cb(res.data.data || [])
+  } catch {
+    cb([])
+  }
+}
+function onStudentSelect(student) {
+  courseForm.value.student_id = student.id
+  if (!courseForm.value.grade && student.grade) {
+    courseForm.value.grade = student.grade
   }
 }
 
@@ -296,15 +479,6 @@ async function loadCourses() {
   }
 }
 
-function updateNowLine() {
-  if (isToday.value) {
-    const now = dayjs()
-    nowLineTop.value = now.hour() * HOUR_HEIGHT + (now.minute() / 60) * HOUR_HEIGHT
-    nowTimeStr.value = now.format('HH:mm')
-  } else {
-    nowLineTop.value = -1
-  }
-}
 
 function onSlotClick(hour, minute) {
   const roundedMinute = Math.floor(minute / 15) * 15
@@ -325,13 +499,19 @@ function openAddDialog(startTime, endTime) {
 function editCourse(course) {
   isEditing.value = true
   editingId.value = course.id
+  editingRepeatGroupId.value = course.repeat_group_id || null
   courseForm.value = {
     student_name: course.student_name,
+    student_id: course.student_id || null,
     date: course.date,
     startTime: course.start_time,
     endTime: course.end_time,
     color: course.color || '#409EFF',
-    description: course.description || ''
+    description: course.description || '',
+    grade: course.grade || '',
+    hourly_fee: course.hourly_fee || '',
+    attended: !!course.attended,
+    repeat_type: course.repeat_type || 'none'
   }
   dialogVisible.value = true
 }
@@ -340,6 +520,8 @@ function resetForm() {
   courseForm.value = getDefaultForm()
   isEditing.value = false
   editingId.value = null
+  editingRepeatGroupId.value = null
+  editingUpdateAllFuture.value = false
   saving.value = false
   deleting.value = false
 }
@@ -353,22 +535,62 @@ async function saveCourse() {
     ElMessage.warning('结束时间必须晚于开始时间')
     return
   }
+  if (!courseForm.value.grade.trim()) {
+    ElMessage.warning('请输入年级')
+    return
+  }
+  if (!courseForm.value.hourly_fee || parseFloat(courseForm.value.hourly_fee) <= 0) {
+    ElMessage.warning('请输入有效的课时费')
+    return
+  }
+
+  // 编辑每周重复课程时：询问是否更新所有未来课程
+  if (isEditing.value && editingRepeatGroupId.value && courseForm.value.repeat_type === 'weekly') {
+    try {
+      await ElMessageBox.confirm(
+        '这是一门每周重复的课程，是否同时修改所有未来的课程？\n点"取消"只修改本节课。',
+        '修改重复课程',
+        {
+          confirmButtonText: '修改全部未来课程',
+          cancelButtonText: '只修改本节课',
+          type: 'info'
+        }
+      )
+      // 用户确认：标记更新全部
+      editingUpdateAllFuture.value = true
+    } catch {
+      editingUpdateAllFuture.value = false
+    }
+  }
+
   saving.value = true
   try {
     const data = {
       student_name: courseForm.value.student_name.trim(),
+      student_id: courseForm.value.student_id || null,
       date: courseForm.value.date,
       start_time: courseForm.value.startTime,
       end_time: courseForm.value.endTime,
       color: courseForm.value.color || '#409EFF',
-      description: courseForm.value.description || ''
+      description: courseForm.value.description || '',
+      grade: courseForm.value.grade || '',
+      hourly_fee: courseForm.value.hourly_fee ? parseFloat(courseForm.value.hourly_fee) : 0,
+      attended: courseForm.value.attended,
+      repeat_type: courseForm.value.repeat_type || 'none'
     }
     if (isEditing.value) {
+      if (editingUpdateAllFuture.value) {
+        data.update_all_future = true
+      }
       await updateCourse(editingId.value, data)
       ElMessage.success('课程已更新')
     } else {
       await createCourse(data)
-      ElMessage.success('课程已添加')
+      if (courseForm.value.repeat_type === 'weekly') {
+        ElMessage.success('课程已添加，已自动创建未来52周的课程')
+      } else {
+        ElMessage.success('课程已添加')
+      }
     }
     dialogVisible.value = false
     loadCourses()
@@ -377,23 +599,55 @@ async function saveCourse() {
     ElMessage.error('保存失败')
   } finally {
     saving.value = false
+    editingUpdateAllFuture.value = false
   }
 }
 
 async function deleteCourse() {
   try {
-    await ElMessageBox.confirm('确定要删除这门课程吗？', '确认删除', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消'
-    })
+    let deleteParams = {}
+
+    if (editingRepeatGroupId.value) {
+      // 每周重复课程：三段选择
+      const action = await ElMessageBox.confirm(
+        '这是一门每周重复的课程，请选择操作：',
+        '删除重复课程',
+        {
+          confirmButtonText: '删除全部未来课程（包含本节）',
+          cancelButtonText: '只删除本节课',
+          distinguishCancelAndClose: true,
+          type: 'warning'
+        }
+      )
+      // 点"删除全部未来课程"（confirm）
+      deleteParams = { delete_all_future: 'true' }
+    } else {
+      await ElMessageBox.confirm('确定要删除这门课程吗？', '确认删除', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      })
+    }
+
     deleting.value = true
-    await deleteCourseApi(editingId.value)
+    await deleteCourseApi(editingId.value, deleteParams)
     ElMessage.success('课程已删除')
     dialogVisible.value = false
     loadCourses()
   } catch (err) {
-    if (err !== 'cancel') console.error('删除失败:', err)
+    if (err === 'cancel' || err === 'close') {
+      // 用户点"只删除本节课"（cancel）→ 正常删除本节课
+      if (err === 'cancel' && editingRepeatGroupId.value) {
+        deleting.value = true
+        await deleteCourseApi(editingId.value, {})
+        ElMessage.success('课程已删除')
+        dialogVisible.value = false
+        loadCourses()
+      }
+      // 用户点了 X 关闭 → 什么都不做
+    } else {
+      console.error('删除失败:', err)
+    }
   } finally {
     deleting.value = false
   }
@@ -404,7 +658,19 @@ function getCourseStyle(course) {
   const [eh, em] = course.end_time.split(':').map(Number)
   const top = ((sh * 60 + sm) / 60) * HOUR_HEIGHT
   const height = Math.max((((eh * 60 + em) - (sh * 60 + sm)) / 60) * HOUR_HEIGHT, 20)
-  return { top: top + 'px', height: height + 'px' }
+
+  const style = { top: top + 'px', height: height + 'px' }
+
+  // 多列模式：按车道分配宽度
+  if (course.laneCount > 1) {
+    const laneWidth = 100 / course.laneCount
+    style.left = (course.laneIndex * laneWidth) + '%'
+    style.width = laneWidth + '%'
+    style.right = 'auto'
+    style.padding = '1px 2px'
+  }
+
+  return style
 }
 
 // 监听路由参数变化（用户从月历点击其他日期进入）
@@ -419,203 +685,20 @@ watch(() => route.params.date, (newDate) => {
 onMounted(() => {
   dateStr.value = route.params.date || dayjs().format('YYYY-MM-DD')
   loadCourses()
-  updateNowLine()
-  nowTimer = setInterval(updateNowLine, 60000)
   nextTick(() => scrollToSuitable())
 })
 
-onUnmounted(() => {
-  if (nowTimer) clearInterval(nowTimer)
-})
 </script>
 
 <style scoped>
-.detail-page {
-  max-width: 920px;
-  margin: 0 auto;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  box-shadow: 0 0 20px rgba(0,0,0,0.05);
-}
+@import "../assets/css/detail.css";
 
-/* 顶部 */
-.detail-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  padding: 14px 20px 10px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.detail-header-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.detail-user {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.detail-user-name {
-  font-size: 13px;
-  color: rgba(255,255,255,0.9);
-  background: rgba(255,255,255,0.15);
-  padding: 3px 12px;
-  border-radius: 20px;
-  font-weight: 500;
-}
-.detail-logout-btn {
-  --el-button-bg-color: rgba(255,255,255,0.1);
-  --el-button-border-color: rgba(255,255,255,0.3);
-  --el-button-text-color: rgba(255,255,255,0.8);
-  --el-button-hover-bg-color: rgba(245,108,108,0.3);
-  --el-button-hover-border-color: #f56c6c;
-  --el-button-hover-text-color: #fff;
-}
-.back-btn {
-  --el-button-bg-color: rgba(255,255,255,0.15);
-  --el-button-border-color: rgba(255,255,255,0.3);
-  --el-button-text-color: #fff;
-  --el-button-hover-bg-color: rgba(255,255,255,0.25);
-}
-.detail-title {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-.detail-nav {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.detail-nav .el-button {
-  --el-button-bg-color: rgba(255,255,255,0.15);
-  --el-button-border-color: rgba(255,255,255,0.3);
-  --el-button-text-color: #fff;
-  --el-button-hover-bg-color: rgba(255,255,255,0.25);
-}
-.detail-nav-date {
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.9);
-}
-.detail-stats {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-.switch-label {
-  font-size: 12px;
-  color: rgba(255,255,255,0.6);
-  transition: color 0.2s;
-}
-.switch-label.is-active {
-  color: #fff;
-  font-weight: 600;
-}
+.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
+</style>
 
-/* 时间轴 - 同原有样式 */
-.timeline-wrapper {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  position: relative;
-  background: #fff;
-}
-.timeline-wrapper::-webkit-scrollbar { width: 8px; }
-.timeline-wrapper::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
-.timeline-wrapper::-webkit-scrollbar-track { background: transparent; }
-.timeline {
-  position: relative;
-  min-height: calc(24 * 64px);
-  padding-left: 70px;
-  padding-right: 16px;
-}
-.hour-slot {
-  position: relative;
-  border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.hour-slot:hover { background: #fafbff; }
-.hour-slot:last-child { border-bottom: none; }
-.hour-label {
-  position: absolute;
-  left: -70px; top: -9px;
-  width: 60px; text-align: right;
-  font-size: 13px; color: #999;
-  font-weight: 500; user-select: none;
-}
-.hour-grid {
-  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  pointer-events: none;
-}
-.minute-marker {
-  position: absolute; top: 0; bottom: 0;
-  width: 1px; background: #f5f5f5;
-}
-.minute-text {
-  position: absolute; top: 2px; left: 4px;
-  font-size: 10px; color: #ddd; white-space: nowrap;
-}
-.hour-slot:nth-child(odd) { background: #fcfcfc; }
+<!-- 全局样式：自动补全下拉建议 -->
+<style scoped>
+@import "../assets/css/detail.css";
 
-.course-block {
-  position: absolute; left: 0; right: 16px;
-  z-index: 10; cursor: pointer; padding: 1px 0;
-}
-.course-inner {
-  height: 100%; border-radius: 6px;
-  padding: 2px 10px; border-left: 4px solid;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  transition: box-shadow 0.2s, transform 0.15s;
-}
-.course-inner:hover {
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
-  transform: translateX(2px);
-}
-.course-time {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px; color: #999;
-  font-weight: 500; line-height: 1.4;
-}
-.course-student { font-size: 14px; font-weight: 600; color: #333; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
-.course-teacher { font-size: 11px; font-weight: 400; opacity: 0.6; }
-.course-desc { font-size: 11px; color: #999; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
-
-.now-line {
-  position: absolute; left: 0; right: 16px;
-  height: 2px; background: #e74c3c; z-index: 20; pointer-events: none;
-}
-.now-dot {
-  position: absolute; left: -4px; top: -4px;
-  width: 10px; height: 10px; background: #e74c3c; border-radius: 50%;
-}
-.now-label {
-  position: absolute; right: -40px; top: -8px;
-  font-size: 11px; color: #e74c3c; font-weight: 600; white-space: nowrap;
-}
-
-.dialog-footer { display: flex; justify-content: space-between; align-items: center; }
-:deep(.el-dialog) { border-radius: 12px; }
-:deep(.el-dialog__header) { margin-right: 0 !important; }
-
-@media (max-width: 640px) {
-  .detail-header { padding: 10px 12px; }
-  .detail-title { font-size: 15px; }
-  .detail-nav-date { font-size: 13px; }
-  .timeline { padding-left: 50px; padding-right: 8px; }
-  .hour-label { left: -50px; width: 42px; font-size: 11px; }
-  .course-student { font-size: 12px; }
-}
+.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
 </style>

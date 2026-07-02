@@ -24,11 +24,17 @@ if (tableExists) {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         teacher_id INTEGER NOT NULL DEFAULT 1,
         student_name TEXT NOT NULL DEFAULT '',
+        student_id INTEGER DEFAULT NULL,
         date TEXT NOT NULL,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         color TEXT DEFAULT '#409EFF',
         description TEXT DEFAULT '',
+        grade TEXT DEFAULT '',
+        hourly_fee REAL DEFAULT 0,
+        attended INTEGER DEFAULT 0,
+        repeat_type TEXT DEFAULT 'none',
+        repeat_group_id INTEGER DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -44,6 +50,21 @@ if (tableExists) {
     db.exec(`ALTER TABLE courses ADD COLUMN teacher_id INTEGER NOT NULL DEFAULT 1`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_courses_teacher ON courses(teacher_id)`);
   }
+
+  // 补充缺失的字段
+  const fieldDefs = {
+    grade: "TEXT DEFAULT ''",
+    hourly_fee: "REAL DEFAULT 0",
+    attended: "INTEGER DEFAULT 0",
+    repeat_type: "TEXT DEFAULT 'none'",
+    repeat_group_id: "INTEGER DEFAULT NULL",
+    student_id: "INTEGER DEFAULT NULL"
+  };
+  for (const [name, def] of Object.entries(fieldDefs)) {
+    if (!colNames.includes(name)) {
+      db.exec(`ALTER TABLE courses ADD COLUMN ${name} ${def}`);
+    }
+  }
 } else {
   // 全新创建
   db.exec(`
@@ -51,11 +72,17 @@ if (tableExists) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       teacher_id INTEGER NOT NULL DEFAULT 1,
       student_name TEXT NOT NULL,
+      student_id INTEGER DEFAULT NULL,
       date TEXT NOT NULL,
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       color TEXT DEFAULT '#409EFF',
       description TEXT DEFAULT '',
+      grade TEXT DEFAULT '',
+      hourly_fee REAL DEFAULT 0,
+      attended INTEGER DEFAULT 0,
+      repeat_type TEXT DEFAULT 'none',
+      repeat_group_id INTEGER DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -64,11 +91,12 @@ if (tableExists) {
 }
 
 db.exec(`CREATE INDEX IF NOT EXISTS idx_courses_date ON courses(date)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_courses_student ON courses(student_id)`);
 
 // ========== 2. 教师表 ==========
 const teachersExist = db.prepare(
   `SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='teachers'`
-  ).get()?.cnt > 0;
+).get()?.cnt > 0;
 
 if (!teachersExist) {
   db.exec(`
@@ -82,11 +110,49 @@ if (!teachersExist) {
     )
   `);
 
-  // 创建默认管理员账号（密码: admin123）
   const hash = crypto.createHash('sha256').update('admin123').digest('hex');
   db.prepare(
     `INSERT INTO teachers (name, username, password) VALUES (?, ?, ?)`
   ).run('管理员', 'admin', hash);
+}
+
+// ========== 3. 学生表 ==========
+const studentsExist = db.prepare(
+  `SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='students'`
+).get()?.cnt > 0;
+
+if (!studentsExist) {
+  db.exec(`
+    CREATE TABLE students (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      grade TEXT DEFAULT '',
+      teacher_id INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_students_teacher ON students(teacher_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_students_name ON students(name)`);
+
+  // 迁移已有课程中的学生数据到 students 表
+  const existingStudents = db.prepare(
+    `SELECT DISTINCT student_name, grade, teacher_id FROM courses WHERE student_name != ''`
+  ).all();
+
+  if (existingStudents.length > 0) {
+    const insertStudent = db.prepare(
+      `INSERT INTO students (name, grade, teacher_id) VALUES (?, ?, ?)`
+    );
+    const updateCourse = db.prepare(
+      `UPDATE courses SET student_id = ? WHERE student_name = ? AND teacher_id = ? AND (student_id IS NULL OR student_id = 0)`
+    );
+
+    for (const s of existingStudents) {
+      const result = insertStudent.run(s.student_name, s.grade || '', s.teacher_id);
+      updateCourse.run(result.lastInsertRowid, s.student_name, s.teacher_id);
+    }
+  }
 }
 
 module.exports = db;

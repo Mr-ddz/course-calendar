@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import CalendarView from './views/CalendarView.vue'
 import DayDetailView from './views/DayDetailView.vue'
 import LoginView from './views/LoginView.vue'
+import StatisticsView from './views/StatisticsView.vue'
 
 const routes = [
   {
@@ -28,6 +29,12 @@ const routes = [
     name: 'day-detail',
     component: DayDetailView,
     props: true,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/statistics',
+    name: 'statistics',
+    component: StatisticsView,
     meta: { requiresAuth: true }
   }
 ]

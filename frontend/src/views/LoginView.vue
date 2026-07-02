@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="login-title">📚 上课啦</h1>
+      <h1 class="login-title"><img src="../assets/images/logo.jpeg" class="title-icon" /> 课表侠</h1>
       <p class="login-subtitle">请登录以继续</p>
       <el-form
         ref="formRef"
@@ -90,43 +90,7 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-.login-card {
-  width: 400px;
-  padding: 40px 36px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.15);
-}
-.login-title {
-  font-size: 24px;
-  font-weight: 700;
-  text-align: center;
-  color: #303133;
-  margin-bottom: 4px;
-}
-.login-subtitle {
-  text-align: center;
-  color: #909399;
-  font-size: 14px;
-  margin-bottom: 28px;
-}
-.login-error {
-  color: #f56c6c;
-  text-align: center;
-  font-size: 13px;
-  margin-top: 12px;
-}
-@media (max-width: 480px) {
-  .login-card {
-    width: 92%;
-    padding: 28px 20px;
-  }
-}
+@import "../assets/css/login.css";
+
+.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
 </style>

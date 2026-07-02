@@ -95,6 +95,51 @@ app.get('/api/teachers', (req, res) => {
   res.json({ data: teachers });
 });
 
+// ========== 学生管理 ==========
+
+// 获取学生列表（支持搜索）
+app.get('/api/students', (req, res) => {
+  try {
+    const { name } = req.query;
+    let students;
+    if (isAdmin(req.teacher)) {
+      if (name) {
+        students = db.prepare(`SELECT * FROM students WHERE name LIKE ? ORDER BY name LIMIT 50`).all(`%${name}%`);
+      } else {
+        students = db.prepare(`SELECT * FROM students ORDER BY name`).all();
+      }
+    } else {
+      if (name) {
+        students = db.prepare(`SELECT * FROM students WHERE teacher_id = ? AND name LIKE ? ORDER BY name LIMIT 50`).all(req.teacher.id, `%${name}%`);
+      } else {
+        students = db.prepare(`SELECT * FROM students WHERE teacher_id = ? ORDER BY name`).all(req.teacher.id);
+      }
+    }
+    res.json({ data: students });
+  } catch (err) {
+    console.error('获取学生列表失败:', err);
+    res.status(500).json({ error: '获取学生列表失败' });
+  }
+});
+
+// 创建学生
+app.post('/api/students', (req, res) => {
+  try {
+    const { name, grade } = req.body;
+    if (!name) return res.status(400).json({ error: '请输入学生姓名' });
+
+    const result = db.prepare(
+      `INSERT INTO students (name, grade, teacher_id) VALUES (?, ?, ?)`
+    ).run(name, grade || '', req.teacher.id);
+
+    const student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(result.lastInsertRowid);
+    res.status(201).json({ data: student });
+  } catch (err) {
+    console.error('创建学生失败:', err);
+    res.status(500).json({ error: '创建学生失败' });
+  }
+});
+
 // ========== 课程 CRUD（admin 可以看到全部，普通老师只看自己） ==========
 const ADMIN_ID = 1;
 function isAdmin(user) { return user.id === ADMIN_ID; }
@@ -137,26 +182,81 @@ app.get('/api/courses/range', (req, res) => {
   }
 });
 
-// 创建新课（自动归属当前教师）
+// ===== 辅助函数：生成未来每周重复课程 =====
+const MAX_WEEKS = 52;
+function generateWeeklyCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description) {
+  const { student_name, grade, hourly_fee, attended, student_id } = courseData;
+  const startDate = new Date(startDateStr);
+  const insertStmt = db.prepare(
+    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'weekly', ?)`
+  );
+
+  const created = [{ id: firstInsertId, date: startDateStr }];
+  for (let w = 1; w <= MAX_WEEKS; w++) {
+    const nextDate = new Date(startDate);
+    nextDate.setDate(nextDate.getDate() + w * 7);
+    const dateStr = nextDate.toISOString().split('T')[0];
+    const result = insertStmt.run(teacherId, student_id || null, student_name, dateStr, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, firstInsertId);
+    created.push({ id: result.lastInsertRowid, date: dateStr });
+  }
+  return created;
+}
+
+// 创建新课
 app.post('/api/courses', (req, res) => {
   try {
-    const { student_name, date, start_time, end_time, color, description } = req.body;
+    let { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type } = req.body;
     if (!student_name || !date || !start_time || !end_time) {
       return res.status(400).json({ error: '请填写必要字段: student_name, date, start_time, end_time' });
     }
+
+    // 处理学生关联：如果有 student_id 则从学生表取数据，否则自动创建
+    if (student_id) {
+      const student = db.prepare(`SELECT * FROM students WHERE id = ? AND (teacher_id = ? OR ? = 1)`).get(student_id, req.teacher.id, req.teacher.id);
+      if (student) {
+        student_name = student.name;
+        grade = grade || student.grade;
+      } else {
+        student_id = null;
+      }
+    }
+    if (!student_id && student_name) {
+      // 尝试查找已有学生，找不到就创建
+      let existing = db.prepare(`SELECT id, grade FROM students WHERE name = ? AND teacher_id = ?`).get(student_name, req.teacher.id);
+      if (existing) {
+        student_id = existing.id;
+        grade = grade || existing.grade;
+      } else {
+        const result = db.prepare(`INSERT INTO students (name, grade, teacher_id) VALUES (?, ?, ?)`).run(student_name, grade || '', req.teacher.id);
+        student_id = result.lastInsertRowid;
+      }
+    }
+
+    // 先插入第一节课
     const result = db.prepare(
-      `INSERT INTO courses (teacher_id, student_name, date, start_time, end_time, color, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(req.teacher.id, student_name, date, start_time, end_time, color || '#409EFF', description || '');
-    const course = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(result.lastInsertRowid);
-    res.status(201).json({ data: course });
+      `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(req.teacher.id, student_id, student_name, date, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, repeat_type || 'none');
+
+    const courseId = result.lastInsertRowid;
+
+    // 如果是每周重复，把第一节课也加入组，并生成未来52周的课程
+    if (repeat_type === 'weekly') {
+      db.prepare(`UPDATE courses SET repeat_group_id = ? WHERE id = ?`).run(courseId, courseId);
+      const courseData = { student_name, grade, hourly_fee, attended, student_id };
+      generateWeeklyCourses(req.teacher.id, courseData, courseId, date, start_time, end_time, color, description);
+    }
+
+    const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? OR id = ? ORDER BY date ASC`).all(courseId, courseId);
+    res.status(201).json({ data: courses.length > 1 ? courses : courses[0] });
   } catch (err) {
     console.error('创建课程失败:', err);
     res.status(500).json({ error: '创建课程失败' });
   }
 });
 
-// 更新课程（admin 可改任何课程，普通老师只能改自己的）
+// 更新课程
 app.put('/api/courses/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -168,17 +268,56 @@ app.put('/api/courses/:id', (req, res) => {
     }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
 
-    const { student_name, date, start_time, end_time, color, description } = req.body;
+    const { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, update_all_future } = req.body;
+
+    // 处理学生关联更新
+    let finalName = student_name || existing.student_name;
+    let finalGrade = grade !== undefined ? grade : existing.grade;
+    let finalStudentId = student_id !== undefined ? student_id : existing.student_id;
+    if (student_id && !student_name) {
+      const s = db.prepare(`SELECT name, grade FROM students WHERE id = ?`).get(student_id);
+      if (s) { finalName = s.name; finalGrade = finalGrade || s.grade; finalStudentId = student_id; }
+    }
+
+    // 如果更新所有未来课程（用于修改时间/费用等）
+    if (update_all_future && existing.repeat_group_id) {
+      const groupId = existing.repeat_group_id;
+      db.prepare(
+        `UPDATE courses SET student_name = ?, student_id = ?, start_time = ?, end_time = ?,
+         color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?,
+         updated_at = CURRENT_TIMESTAMP WHERE repeat_group_id = ? AND date >= ?`
+      ).run(
+        finalName, finalStudentId,
+        start_time || existing.start_time,
+        end_time || existing.end_time,
+        color || existing.color,
+        description !== undefined ? description : existing.description,
+        finalGrade,
+        hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
+        attended !== undefined ? (attended ? 1 : 0) : existing.attended,
+        groupId,
+        date || existing.date
+      );
+      const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? ORDER BY date ASC`).all(groupId);
+      return res.json({ data: courses });
+    }
+
+    // 单独更新这节课
     db.prepare(
-      `UPDATE courses SET student_name = ?, date = ?, start_time = ?, end_time = ?,
-       color = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      `UPDATE courses SET student_name = ?, student_id = ?, date = ?, start_time = ?, end_time = ?,
+       color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?, repeat_type = ?,
+       updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(
-      student_name || existing.student_name,
+      finalName, finalStudentId,
       date || existing.date,
       start_time || existing.start_time,
       end_time || existing.end_time,
       color || existing.color,
       description !== undefined ? description : existing.description,
+      finalGrade,
+      hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
+      attended !== undefined ? (attended ? 1 : 0) : existing.attended,
+      repeat_type !== undefined ? repeat_type : existing.repeat_type,
       id
     );
     const updated = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
@@ -189,7 +328,7 @@ app.put('/api/courses/:id', (req, res) => {
   }
 });
 
-// 删除课程（admin 可删任何课程，普通老师只能删自己的）
+// 删除课程
 app.delete('/api/courses/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -200,11 +339,146 @@ app.delete('/api/courses/:id', (req, res) => {
       existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
     }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
+
+    const { delete_all_future } = req.query;
+
+    // 如果删除所有未来课程（同一组且从当前日期起的）
+    if (delete_all_future === 'true' && existing.repeat_group_id) {
+      const result = db.prepare(`DELETE FROM courses WHERE repeat_group_id = ? AND date >= ?`).run(existing.repeat_group_id, existing.date);
+      return res.json({ message: `已删除 ${result.changes} 节课` });
+    }
+
     db.prepare(`DELETE FROM courses WHERE id = ?`).run(id);
     res.json({ message: '删除成功' });
   } catch (err) {
     console.error('删除课程失败:', err);
     res.status(500).json({ error: '删除课程失败' });
+  }
+});
+
+// ========== 统计 & 搜索 API ==========
+
+// 搜索课程（模糊搜索 + 分页）
+app.get('/api/courses/search', (req, res) => {
+  try {
+    const { student_name, grade, attended, page = 1, page_size = 20, start_date, end_date } = req.query;
+    const conditions = [];
+    const params = [];
+
+    // 数据隔离
+    if (!isAdmin(req.teacher)) {
+      conditions.push('c.teacher_id = ?');
+      params.push(req.teacher.id);
+    }
+
+    if (student_name) {
+      conditions.push('c.student_name LIKE ?');
+      params.push(`%${student_name}%`);
+    }
+    if (grade) {
+      conditions.push('c.grade LIKE ?');
+      params.push(`%${grade}%`);
+    }
+    if (attended === '1' || attended === '0' || attended === 1 || attended === 0) {
+      conditions.push('c.attended = ?');
+      params.push(Number(attended));
+    }
+    if (start_date) {
+      conditions.push('c.date >= ?');
+      params.push(start_date);
+    }
+    if (end_date) {
+      conditions.push('c.date <= ?');
+      params.push(end_date);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // 查询总数
+    const countSql = `SELECT COUNT(*) as total FROM courses c ${whereClause}`;
+    const { total } = db.prepare(countSql).get(...params);
+
+    // 分页查询
+    const offset = (parseInt(page) - 1) * parseInt(page_size);
+    const selectSql = isAdmin(req.teacher)
+      ? `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${whereClause} ORDER BY c.date DESC, c.start_time ASC LIMIT ? OFFSET ?`
+      : `SELECT c.* FROM courses c ${whereClause} ORDER BY c.date DESC, c.start_time ASC LIMIT ? OFFSET ?`;
+
+    const data = db.prepare(selectSql).all(...params, parseInt(page_size), offset);
+
+    res.json({ data, total, page: parseInt(page), page_size: parseInt(page_size) });
+  } catch (err) {
+    console.error('搜索课程失败:', err);
+    res.status(500).json({ error: '搜索失败' });
+  }
+});
+
+// 统计数据（按周/月/年）
+app.get('/api/courses/statistics', (req, res) => {
+  try {
+    const { group_by = 'month', start_date, end_date } = req.query;
+
+    let teacherCondition = '';
+    const params = [];
+    if (!isAdmin(req.teacher)) {
+      teacherCondition = 'AND c.teacher_id = ?';
+      params.push(req.teacher.id);
+    }
+
+    const dateFilter = [];
+    if (start_date) {
+      dateFilter.push('c.date >= ?');
+      params.push(start_date);
+    }
+    if (end_date) {
+      dateFilter.push('c.date <= ?');
+      params.push(end_date);
+    }
+    const dateWhere = dateFilter.length > 0 ? 'AND ' + dateFilter.join(' AND ') : '';
+
+    // 时长计算辅助（分钟）
+    const durationExpr = `(CAST(substr(c.end_time, 1, 2) AS REAL) * 60 + CAST(substr(c.end_time, 4, 2) AS REAL) - (CAST(substr(c.start_time, 1, 2) AS REAL) * 60 + CAST(substr(c.start_time, 4, 2) AS REAL)))`;
+
+    // 按周/月/年分组统计
+    let dateGroup;
+    if (group_by === 'week') {
+      dateGroup = "strftime('%Y-W%W', c.date)";
+    } else if (group_by === 'year') {
+      dateGroup = "strftime('%Y', c.date)";
+    } else {
+      dateGroup = "strftime('%Y-%m', c.date)";
+    }
+
+    const sql = `
+      SELECT ${dateGroup} as period,
+             COUNT(*) as course_count,
+             SUM(${durationExpr}) / 60.0 as total_hours,
+             SUM(c.hourly_fee * ${durationExpr} / 60.0) as total_fee,
+             SUM(CASE WHEN c.attended = 1 THEN ${durationExpr} / 60.0 ELSE 0 END) as attended_hours,
+             SUM(CASE WHEN c.attended = 1 THEN c.hourly_fee * ${durationExpr} / 60.0 ELSE 0 END) as attended_fee
+      FROM courses c
+      WHERE 1=1 ${teacherCondition} ${dateWhere}
+      GROUP BY ${dateGroup}
+      ORDER BY period DESC
+    `;
+
+    const data = db.prepare(sql).all(...params);
+
+    // 总统计
+    const totalSql = `
+      SELECT COUNT(*) as total_courses,
+             SUM(${durationExpr}) / 60.0 as total_hours,
+             SUM(c.hourly_fee * ${durationExpr} / 60.0) as total_fee,
+             SUM(CASE WHEN c.attended = 1 THEN c.hourly_fee * ${durationExpr} / 60.0 ELSE 0 END) as total_attended_fee
+      FROM courses c
+      WHERE 1=1 ${teacherCondition} ${dateWhere}
+    `;
+    const totals = db.prepare(totalSql).get(...params);
+
+    res.json({ data, totals });
+  } catch (err) {
+    console.error('统计失败:', err);
+    res.status(500).json({ error: '统计失败' });
   }
 });
 
