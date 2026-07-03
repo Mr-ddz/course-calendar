@@ -39,7 +39,7 @@
         </div>
         <div class="stat-card stat-card--warning">
           <div class="stat-card-value">¥{{ (statsData.totals?.total_fee || 0).toFixed(0) }}</div>
-          <div class="stat-card-label">总课时费</div>
+          <div class="stat-card-label">应收课时费</div>
         </div>
       </div>
     </header>
@@ -86,36 +86,36 @@
     <!-- 搜索结果表格 -->
     <div class="stats-table-wrapper">
       <el-table :data="searchResult.data" stripe style="width: 100%" v-loading="searchLoading">
-        <el-table-column prop="date" label="日期" width="110" />
-        <el-table-column prop="start_time" label="开始" width="70" />
-        <el-table-column prop="end_time" label="结束" width="70" />
-        <el-table-column label="时长" width="70">
+        <el-table-column prop="date" label="日期" min-width="100" />
+        <el-table-column prop="start_time" label="开始" min-width="60" />
+        <el-table-column prop="end_time" label="结束" min-width="60" />
+        <el-table-column label="时长" min-width="70">
           <template #default="{ row }">
             {{ calcDuration(row.start_time, row.end_time) }}
           </template>
         </el-table-column>
-        <el-table-column prop="student_name" label="学生" min-width="90" />
-        <el-table-column prop="grade" label="年级" width="120" />
-        <el-table-column label="课时费" width="80">
+        <el-table-column prop="student_name" label="学生" min-width="70" />
+        <el-table-column prop="grade" label="年级" min-width="90" />
+        <el-table-column label="每小时课时费" min-width="80">
           <template #default="{ row }">
             ¥{{ row.hourly_fee }}
           </template>
         </el-table-column>
-        <el-table-column label="实收" width="80">
+        <el-table-column label="实收" min-width="80">
           <template #default="{ row }">
             <span :class="row.attended ? 'fee-yes' : 'fee-no'">
-              {{ row.attended ? '¥' + row.hourly_fee : '¥0' }}
+              {{ row.attended ? '¥' + calcReceivedFee(row) : '¥0' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="签到" width="80">
+        <el-table-column label="签到" min-width="70">
           <template #default="{ row }">
             <el-tag :type="row.attended ? 'success' : 'info'" size="small">
               {{ row.attended ? '已到' : '未到' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="isAdmin" prop="teacher_name" label="教师" width="80" />
+        <el-table-column v-if="isAdmin" prop="teacher_name" label="教师" min-width="70" />
       </el-table>
 
       <!-- 分页 -->
@@ -292,6 +292,14 @@ function formatHours(hours) {
   const h = Math.floor(hours)
   const m = Math.round((hours - h) * 60)
   return m > 0 ? `${h}h${m}m` : `${h}h`
+}
+
+function calcReceivedFee(row) {
+  const hourly = parseFloat(row.hourly_fee) || 0
+  const [sh, sm] = row.start_time.split(':').map(Number)
+  const [eh, em] = row.end_time.split(':').map(Number)
+  const hours = ((eh * 60 + em) - (sh * 60 + sm)) / 60
+  return (hourly * hours).toFixed(0)
 }
 
 function calcDuration(start, end) {

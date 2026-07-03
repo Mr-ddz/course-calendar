@@ -251,6 +251,9 @@
 .timetable tbody tr:last-child td {
   border-bottom: none;
 }
+.course-cell {
+  background: #fff0f3;
+}
 .cell-course {
   font-size: 11px;
   padding: 2px 6px;

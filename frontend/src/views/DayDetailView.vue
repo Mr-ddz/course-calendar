@@ -169,7 +169,7 @@
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="课时费" required label-for="course_fee">
+        <el-form-item label="单价" required label-for="course_fee">
           <el-input
             id="course_fee"
             v-model="courseForm.hourly_fee"
