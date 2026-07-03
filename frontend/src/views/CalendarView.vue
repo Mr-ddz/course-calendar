@@ -2,7 +2,7 @@
   <div class="calendar-page">
     <header class="cal-header">
       <div class="cal-header-top">
-        <h1 class="cal-title"><img src="../assets/images/logo.jpeg" class="title-icon" /> {{ teacherName }}的课程表</h1>
+        <h1 class="cal-title"><img src="../assets/images/logo.svg" class="title-icon" /> {{ teacherName }}的课程表</h1>
         <div class="cal-user">
           <span class="cal-user-name">{{ teacherName }}</span>
           <el-button size="small" @click="handleLogout">退出</el-button>
@@ -183,5 +183,5 @@ onMounted(() => {
 <style scoped>
 @import "../assets/css/calendar.css";
 
-.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
+.title-icon { height: 1.8em; width: auto; display: block; }
 </style>

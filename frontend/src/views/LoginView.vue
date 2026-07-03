@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="login-title"><img src="../assets/images/logo.jpeg" class="title-icon" /> 课表侠</h1>
+      <h1 class="login-title"><img src="../assets/images/logo.svg" class="title-icon" /> 课表侠</h1>
       <p class="login-subtitle">请登录以继续</p>
       <el-form
         ref="formRef"
@@ -81,8 +81,10 @@ async function handleLogin() {
     ElMessage.success(`欢迎回来，${teacher.name}`)
     router.push('/')
   } catch (err) {
+    console.log(err)
     const msg = err.response?.data?.error || '登录失败'
     error.value = msg
+    ElMessage.error(msg)
   } finally {
     loading.value = false
   }
@@ -92,5 +94,5 @@ async function handleLogin() {
 <style scoped>
 @import "../assets/css/login.css";
 
-.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
+.title-icon { height: 1.8em; width: auto; display: block; }
 </style>

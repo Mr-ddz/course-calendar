@@ -48,6 +48,9 @@ export function getStudents(params) {
 export function createStudent(data) {
   return api.post('/students', data)
 }
+export function getStudentRecentFee(id) {
+  return api.get('/students/recent-fee', { params: { id } })
+}
 
 // ===== 课程 =====
 export function getCourses(date) {

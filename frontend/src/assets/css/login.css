@@ -18,6 +18,10 @@
   text-align: center;
   color: #303133;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 .login-subtitle {
   text-align: center;

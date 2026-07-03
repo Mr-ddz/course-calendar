@@ -140,6 +140,21 @@ app.post('/api/students', (req, res) => {
   }
 });
 
+// 获取学生最近一次课时费
+app.get('/api/students/recent-fee', (req, res) => {
+  try {
+    const { id } = req.query;
+    if (!id) return res.status(400).json({ error: '请提供学生 ID' });
+    const course = db.prepare(
+      `SELECT hourly_fee, color FROM courses WHERE student_id = ? ORDER BY date DESC, id DESC LIMIT 1`
+    ).get(id);
+    res.json({ data: { hourly_fee: course ? course.hourly_fee : 0, color: course ? course.color : '#409EFF' } });
+  } catch (err) {
+    console.error('查询失败:', err);
+    res.status(500).json({ error: '查询失败' });
+  }
+});
+
 // ========== 课程 CRUD（admin 可以看到全部，普通老师只看自己） ==========
 const ADMIN_ID = 1;
 function isAdmin(user) { return user.id === ADMIN_ID; }

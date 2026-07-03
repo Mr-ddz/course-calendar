@@ -37,7 +37,17 @@
       "Bash(curl -s -o /dev/null -w \"统计 %{http_code}\\\\n\" \"http://localhost:3002/statistics\")",
       "Bash(python3)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
-      "Bash(grep -E '\\\\.db$|node_modules|dist|\\\\.claude' /Users/admin/Desktop/project/calendar/.gitignore)"
+      "Bash(grep -E '\\\\.db$|node_modules|dist|\\\\.claude' /Users/admin/Desktop/project/calendar/.gitignore)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3002/)",
+      "Bash(sed -i '' 's/favicon\\\\.jpeg/favicon.svg/g' /Users/admin/Desktop/project/calendar/frontend/index.html)",
+      "Bash(sed -i '' 's/image\\\\/jpeg/image\\\\/svg+xml/g' /Users/admin/Desktop/project/calendar/frontend/index.html)",
+      "Bash(sed -i '' 's/vertical-align: -0.1em; display: inline;/display: block;/g' CalendarView.vue DayDetailView.vue)",
+      "Bash(sed -i '' 's/display: block; }/display: block; }/' CalendarView.vue DayDetailView.vue)",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/schedule.db \"SELECT COUNT\\(*\\) as courses FROM courses;\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/schedule.db \"SELECT id, name, username FROM teachers;\")",
+      "Bash(curl -s http://localhost:3002/api/login -X POST -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('登录成功'\\) if 'data' in d else print\\('登录失败:', d.get\\('error',''\\)\\)\")",
+      "Bash(node seed.js add \"dong\" \"dong\" \"dong\")"
     ]
   }
 }

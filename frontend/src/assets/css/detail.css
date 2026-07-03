@@ -1,5 +1,5 @@
 .detail-page {
-  max-width: 920px;
+  max-width: 1080px;
   margin: 0 auto;
   min-height: 100vh;
   display: flex;
@@ -55,6 +55,9 @@
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .detail-nav {
   display: flex;
@@ -121,15 +124,15 @@
   overflow-x: hidden;
   position: relative;
   background: #fff;
+  padding-top: 10px;
 }
 .timeline-wrapper::-webkit-scrollbar { width: 8px; }
 .timeline-wrapper::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
 .timeline-wrapper::-webkit-scrollbar-track { background: transparent; }
 .timeline {
   position: relative;
-  min-height: calc(24 * 64px);
-  padding-left: 70px;
-  padding-right: 16px;
+  min-height: calc(18 * 64px + 20px);
+  padding: 0px 16px 0 70px;
 }
 .hour-slot {
   position: relative;

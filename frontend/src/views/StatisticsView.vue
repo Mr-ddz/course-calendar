@@ -16,25 +16,11 @@
 
       <!-- 统计周期切换 -->
       <div class="stats-period">
-        <el-radio-group v-model="period" size="small" @change="loadStatistics">
+        <el-radio-group v-model="period" size="small">
           <el-radio-button value="week">本周</el-radio-button>
           <el-radio-button value="month">本月</el-radio-button>
           <el-radio-button value="year">本年</el-radio-button>
-          <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
-        <template v-if="period === 'custom'">
-          <el-date-picker
-            v-model="customDateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            size="small"
-            style="width: 240px; margin-left: 8px;"
-            @change="loadStatistics"
-          />
-        </template>
       </div>
 
       <!-- 统计概览卡片 -->
@@ -56,29 +42,6 @@
           <div class="stat-card-label">总课时费</div>
         </div>
       </div>
-
-      <!-- 分周期明细 -->
-      <div class="stats-chart" v-if="statsData.data?.length">
-        <el-table :data="statsData.data" size="small" stripe>
-          <el-table-column prop="period" label="周期" width="120" />
-          <el-table-column prop="course_count" label="课程数" width="80" />
-          <el-table-column label="上课时长">
-            <template #default="{ row }">
-              {{ formatHours(row.total_hours) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="课时费">
-            <template #default="{ row }">
-              ¥{{ (row.total_fee || 0).toFixed(0) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="实收">
-            <template #default="{ row }">
-              <span class="fee-attended">¥{{ (row.attended_fee || 0).toFixed(0) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
     </header>
 
     <!-- 搜索筛选 -->
@@ -94,20 +57,19 @@
             value-format="YYYY-MM-DD"
             style="width: 220px;"
             clearable
-            @change="doSearch"
           />
         </el-form-item>
         <el-form-item label="学生姓名">
-          <el-input v-model="searchForm.student_name" placeholder="模糊搜索" clearable @clear="doSearch" style="width: 130px;" />
+          <el-input v-model="searchForm.student_name" placeholder="模糊搜索" clearable style="width: 130px;" />
         </el-form-item>
         <el-form-item label="年级">
-          <el-select v-model="searchForm.grade" placeholder="全部" clearable @change="doSearch" style="width: 130px;">
+          <el-select v-model="searchForm.grade" placeholder="全部" clearable style="width: 130px;">
             <el-option label="全部" value="" />
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="签到">
-          <el-select v-model="searchForm.attended" placeholder="全部" clearable @change="doSearch" style="width: 100px;">
+          <el-select v-model="searchForm.attended" placeholder="全部" clearable style="width: 100px;">
             <el-option label="全部" value="" />
             <el-option label="已到课" :value="1" />
             <el-option label="未到课" :value="0" />
@@ -165,7 +127,7 @@
           layout="total, sizes, prev, pager, next"
           small
           @size-change="doSearch"
-          @current-change="loadSearch"
+          @current-change="doSearch"
         />
       </div>
     </div>
@@ -173,7 +135,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
@@ -192,54 +154,35 @@ const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 const isAdmin = teacherInfo.id === 1
 
-// ===== 统计周期 =====
+// ===== 统计周期（只填充日期范围，不直接调接口） =====
 const period = ref('month')
-const customDateRange = ref(null)
 const statsData = reactive({ data: [], totals: null })
 
-function getDateRange() {
+function getPeriodRange(p) {
   const now = dayjs()
-  if (period.value === 'week') {
-    const start = now.startOf('week').format('YYYY-MM-DD')
-    const end = now.format('YYYY-MM-DD')
-    return { start_date: start, end_date: end }
-  } else if (period.value === 'month') {
-    const start = now.startOf('month').format('YYYY-MM-DD')
-    const end = now.format('YYYY-MM-DD')
-    return { start_date: start, end_date: end }
-  } else if (period.value === 'year') {
-    const start = now.startOf('year').format('YYYY-MM-DD')
-    const end = now.format('YYYY-MM-DD')
-    return { start_date: start, end_date: end }
-  } else if (period.value === 'custom' && customDateRange.value) {
-    return { start_date: customDateRange.value[0], end_date: customDateRange.value[1] }
+  if (p === 'week') {
+    return [now.startOf('week').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
+  } else if (p === 'year') {
+    return [now.startOf('year').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
   }
-  return {}
+  // 默认本月
+  return [now.startOf('month').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
 }
 
-function getGroupBy() {
-  if (period.value === 'week') return 'week'
-  if (period.value === 'year') return 'year'
+function getGroupBy(p) {
+  if (p === 'week') return 'week'
+  if (p === 'year') return 'year'
   return 'month'
 }
 
-async function loadStatistics() {
-  try {
-    const params = {
-      group_by: getGroupBy(),
-      ...getDateRange()
-    }
-    if (!params.start_date) return
-    const res = await getStatistics(params)
-    statsData.data = res.data.data || []
-    statsData.totals = res.data.totals || {}
-  } catch (err) {
-    console.error('加载统计失败:', err)
-  }
-}
+// 周期切换时：更新日期范围，不调接口
+watch(period, (val) => {
+  if (val === 'custom') return // 自定义不自动填充
+  searchDateRange.value = getPeriodRange(val)
+})
 
-// ===== 搜索 =====
-const searchDateRange = ref(null)
+// ===== 搜索（统一入口：点击搜索按钮时调用） =====
+const searchDateRange = ref(getPeriodRange('month'))
 const searchForm = reactive({
   student_name: '',
   grade: '',
@@ -252,34 +195,39 @@ const searchLoading = ref(false)
 
 async function doSearch() {
   searchPage.value = 1
-  await loadSearch()
-}
 
-function resetSearch() {
-  searchForm.student_name = ''
-  searchForm.grade = ''
-  searchForm.attended = ''
-  searchDateRange.value = null
-  doSearch()
-}
+  // 同时加载统计和搜索结果
+  const range = searchDateRange.value
+  const params = { page: 1, page_size: searchPageSize.value }
+  if (range) {
+    params.start_date = range[0]
+    params.end_date = range[1]
+  }
+  if (searchForm.student_name) params.student_name = searchForm.student_name
+  if (searchForm.grade) params.grade = searchForm.grade
+  if (searchForm.attended !== '' && searchForm.attended !== null) {
+    params.attended = String(searchForm.attended)
+  }
 
-async function loadSearch() {
+  // 加载统计
+  if (range) {
+    try {
+      const statsParams = {
+        group_by: getGroupBy(period.value),
+        start_date: range[0],
+        end_date: range[1]
+      }
+      const res = await getStatistics(statsParams)
+      statsData.data = res.data.data || []
+      statsData.totals = res.data.totals || {}
+    } catch (err) {
+      console.error('加载统计失败:', err)
+    }
+  }
+
+  // 加载搜索表格
   searchLoading.value = true
   try {
-    const params = {
-      page: searchPage.value,
-      page_size: searchPageSize.value
-    }
-    if (searchDateRange.value) {
-      params.start_date = searchDateRange.value[0]
-      params.end_date = searchDateRange.value[1]
-    }
-    if (searchForm.student_name) params.student_name = searchForm.student_name
-    if (searchForm.grade) params.grade = searchForm.grade
-    if (searchForm.attended !== '' && searchForm.attended !== null) {
-      params.attended = String(searchForm.attended)
-    }
-
     const res = await searchCourses(params)
     searchResult.data = res.data.data || []
     searchResult.total = res.data.total || 0
@@ -288,6 +236,15 @@ async function loadSearch() {
   } finally {
     searchLoading.value = false
   }
+}
+
+function resetSearch() {
+  searchForm.student_name = ''
+  searchForm.grade = ''
+  searchForm.attended = ''
+  period.value = 'month'
+  searchDateRange.value = getPeriodRange('month')
+  doSearch()
 }
 
 // ===== 辅助函数 =====
@@ -322,8 +279,8 @@ async function handleLogout() {
 }
 
 onMounted(() => {
-  loadStatistics()
-  loadSearch()
+  searchDateRange.value = getPeriodRange('month')
+  doSearch()
 })
 </script>
 

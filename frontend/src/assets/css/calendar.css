@@ -3,7 +3,7 @@
   background: #f5f7fa;
 }
 .cal-header {
-  max-width: 920px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 24px 20px 20px;
   color: #303133;
@@ -19,6 +19,9 @@
   font-weight: 700;
   color: #303133;
   letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .cal-user {
   display: flex;

@@ -4,7 +4,7 @@
     <header class="detail-header">
       <div class="detail-header-row">
         <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
-        <h1 class="detail-title"><img src="../assets/images/logo.jpeg" class="title-icon" /> {{ teacherName }}的课程表</h1>
+        <h1 class="detail-title"><img src="../assets/images/logo.svg" class="title-icon" /> {{ teacherName }}的课程表</h1>
         <div class="detail-user">
           <span class="detail-user-name">{{ teacherName }}</span>
           <el-button size="small" class="detail-logout-btn" @click="handleLogout">退出</el-button>
@@ -57,13 +57,13 @@
     <div class="timeline-wrapper" ref="timelineWrapper">
       <div class="timeline">
         <div
-          v-for="hour in 24"
+          v-for="hour in 18"
           :key="hour"
           class="hour-slot"
           :style="{ height: HOUR_HEIGHT + 'px' }"
-          @click="onSlotClick(hour - 1, 0)"
+          @click="onSlotClick(hour + 5, 0)"
         >
-          <div class="hour-label">{{ String(hour - 1).padStart(2, '0') }}:00</div>
+          <div class="hour-label">{{ String(hour + 5).padStart(2, '0') }}:00</div>
           <div class="hour-grid">
             <div v-for="min in 4" :key="min" class="minute-marker" :style="{ left: (min * 25) + '%' }">
               <span class="minute-text">{{ min * 15 }}</span>
@@ -170,7 +170,7 @@
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="课时费" required label-for="course_fee">
+        <el-form-item label="课时费（每小时）" required label-for="course_fee">
           <el-input
             id="course_fee"
             v-model="courseForm.hourly_fee"
@@ -232,10 +232,12 @@ import {
   updateCourse,
   deleteCourse as deleteCourseApi,
   logout as logoutApi,
-  getStudents
+  getStudents,
+  getStudentRecentFee
 } from '../api/index.js'
 
 const HOUR_HEIGHT = 64
+const START_HOUR = 6
 
 const router = useRouter()
 const route = useRoute()
@@ -391,11 +393,21 @@ async function queryStudents(query, cb) {
     cb([])
   }
 }
-function onStudentSelect(student) {
+async function onStudentSelect(student) {
   courseForm.value.student_id = student.id
   if (!courseForm.value.grade && student.grade) {
     courseForm.value.grade = student.grade
   }
+  // 自动填充最近一次课时费和颜色
+  try {
+    const res = await getStudentRecentFee(student.id)
+    if (res.data.data?.hourly_fee) {
+      courseForm.value.hourly_fee = res.data.data.hourly_fee
+    }
+    if (res.data.data?.color) {
+      courseForm.value.color = res.data.data.color
+    }
+  } catch { /* 忽略 */ }
 }
 
 const courseForm = ref(getDefaultForm())
@@ -463,7 +475,7 @@ function scrollToSuitable() {
   if (!timelineWrapper.value) return
   if (isToday.value) {
     const now = dayjs()
-    const top = now.hour() * HOUR_HEIGHT + (now.minute() / 60) * HOUR_HEIGHT - HOUR_HEIGHT * 1.5
+    const top = ((now.hour() - START_HOUR) * 60 + now.minute()) / 60 * HOUR_HEIGHT - HOUR_HEIGHT * 1.5
     timelineWrapper.value.scrollTop = Math.max(0, top)
   } else {
     timelineWrapper.value.scrollTop = 0
@@ -481,9 +493,10 @@ async function loadCourses() {
 
 
 function onSlotClick(hour, minute) {
+  const actualHour = hour
   const roundedMinute = Math.floor(minute / 15) * 15
-  const startTime = `${String(hour).padStart(2, '0')}:${String(roundedMinute).padStart(2, '0')}`
-  let endHour = hour + 1
+  const startTime = `${String(actualHour).padStart(2, '0')}:${String(roundedMinute).padStart(2, '0')}`
+  let endHour = actualHour + 1
   if (endHour >= 24) endHour = 23
   const endTime = `${String(endHour).padStart(2, '0')}:${String(roundedMinute).padStart(2, '0')}`
   openAddDialog(startTime, endTime)
@@ -656,8 +669,11 @@ async function deleteCourse() {
 function getCourseStyle(course) {
   const [sh, sm] = course.start_time.split(':').map(Number)
   const [eh, em] = course.end_time.split(':').map(Number)
-  const top = ((sh * 60 + sm) / 60) * HOUR_HEIGHT
-  const height = Math.max((((eh * 60 + em) - (sh * 60 + sm)) / 60) * HOUR_HEIGHT, 20)
+  const topMinutes = (sh - START_HOUR) * 60 + sm
+  const bottomMinutes = (eh - START_HOUR) * 60 + em
+  const durationMinutes = bottomMinutes - topMinutes
+  const top = (topMinutes / 60) * HOUR_HEIGHT
+  const height = Math.max((durationMinutes / 60) * HOUR_HEIGHT, 20)
 
   const style = { top: top + 'px', height: height + 'px' }
 
@@ -693,12 +709,11 @@ onMounted(() => {
 <style scoped>
 @import "../assets/css/detail.css";
 
-.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
+.title-icon { height: 1.8em; width: auto; display: block; }
 </style>
 
 <!-- 全局样式：自动补全下拉建议 -->
 <style scoped>
 @import "../assets/css/detail.css";
 
-.title-icon { height: 1em; width: auto; vertical-align: -0.1em; display: inline; }
 </style>
