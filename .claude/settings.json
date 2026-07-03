@@ -47,7 +47,16 @@
       "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/schedule.db \"SELECT id, name, username FROM teachers;\")",
       "Bash(curl -s http://localhost:3002/api/login -X POST -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('登录成功'\\) if 'data' in d else print\\('登录失败:', d.get\\('error',''\\)\\)\")",
-      "Bash(node seed.js add \"dong\" \"dong\" \"dong\")"
+      "Bash(node seed.js add \"dong\" \"dong\" \"dong\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/admin/Desktop/project/calendar/package.json'\\)\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/schedule.db \"SELECT COUNT\\(*\\) FROM courses;\")",
+      "Bash(ls -la /root/schedule.db.*)",
+      "Bash(ls -la /root/schedule.db*)",
+      "Bash(rm -rf /Users/admin/Desktop/project/calendar/backend/data/)",
+      "Bash(curl -s -X POST \"http://localhost:3002/api/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(rm -f course-calendar.tar.gz)",
+      "Bash(tar --exclude='node_modules' --exclude='frontend/dist' --exclude='*.db' --exclude='.git' --exclude='.claude' -czf course-calendar.tar.gz .)",
+      "Bash(tar -tzf course-calendar.tar.gz)"
     ]
   }
 }

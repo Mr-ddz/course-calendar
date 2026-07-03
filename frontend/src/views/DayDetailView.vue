@@ -81,14 +81,13 @@
           @click.stop="editCourse(course)"
         >
           <div class="course-inner" :style="{ backgroundColor: course.color + '20', borderLeftColor: course.color }">
+            <div v-if="!hideStudentName" class="course-student">
+              {{ course.student_name }}
+              <span v-if="course.teacher_name" class="course-teacher">（{{ course.teacher_name }}）</span>
+            </div>
             <div class="course-time">
               <span v-if="course.repeat_type === 'weekly'" class="repeat-badge">🔄每周</span>
               {{ course.start_time }} - {{ course.end_time }}
-            </div>
-            <div v-if="!hideStudentName" class="course-student">
-              <span v-if="course.teacher_name && course.laneCount > 1" class="course-teacher">[{{ course.teacher_name }}] </span>
-              {{ course.student_name }}
-              <span v-if="course.teacher_name && course.laneCount <= 1" class="course-teacher">（{{ course.teacher_name }}）</span>
             </div>
             <div v-if="!hideStudentName" class="course-meta">
               <span v-if="course.grade" class="meta-item">{{ course.grade }}</span>
@@ -170,11 +169,11 @@
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="课时费（每小时）" required label-for="course_fee">
+        <el-form-item label="课时费" required label-for="course_fee">
           <el-input
             id="course_fee"
             v-model="courseForm.hourly_fee"
-            placeholder="只能输入数字"
+            placeholder="只能输入数字（每小时课时费）"
             type="number"
             min="0"
           >

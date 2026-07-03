@@ -57,6 +57,7 @@
             value-format="YYYY-MM-DD"
             style="width: 220px;"
             clearable
+            @change="period = ''"
           />
         </el-form-item>
         <el-form-item label="学生姓名">
@@ -177,7 +178,7 @@ function getGroupBy(p) {
 
 // 周期切换时：更新日期范围，不调接口
 watch(period, (val) => {
-  if (val === 'custom') return // 自定义不自动填充
+  if (!val) return // 用户手动改了日期，不做任何事
   searchDateRange.value = getPeriodRange(val)
 })
 
@@ -243,7 +244,6 @@ function resetSearch() {
   searchForm.grade = ''
   searchForm.attended = ''
   period.value = 'month'
-  searchDateRange.value = getPeriodRange('month')
   doSearch()
 }
 

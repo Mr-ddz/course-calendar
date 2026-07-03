@@ -474,7 +474,7 @@ app.get('/api/courses/statistics', (req, res) => {
       FROM courses c
       WHERE 1=1 ${teacherCondition} ${dateWhere}
       GROUP BY ${dateGroup}
-      ORDER BY period DESC
+      ORDER BY period ASC
     `;
 
     const data = db.prepare(sql).all(...params);

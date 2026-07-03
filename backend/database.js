@@ -2,8 +2,21 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const crypto = require('crypto');
 
-const DB_DIR = process.env.DB_DIR || __dirname;
+const fs = require('fs');
+const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'data');
+
+// 确保数据库目录存在
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+
 const DB_PATH = path.join(DB_DIR, 'schedule.db');
+
+// 迁移旧数据库（兼容旧版本，数据库在 backend/ 下）
+const OLD_PATH = path.join(__dirname, 'schedule.db');
+if (!fs.existsSync(DB_PATH) && fs.existsSync(OLD_PATH)) {
+  fs.copyFileSync(OLD_PATH, DB_PATH);
+  console.log('📦 已迁移数据库到:', DB_PATH);
+}
+
 const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
