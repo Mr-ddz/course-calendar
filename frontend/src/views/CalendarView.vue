@@ -62,7 +62,14 @@
 
     <!-- 课程 timetable -->
     <div class="timetable-wrapper">
-      <h2 class="timetable-title">📅 {{ monthLabel }}课程安排</h2>
+      <div class="timetable-header">
+        <h2 class="timetable-title">📅 {{ monthLabel }}课程安排</h2>
+        <div class="timetable-switch">
+          <span class="switch-label" :class="{ 'is-active': !hideStudentName }">姓名</span>
+          <el-switch v-model="hideStudentName" size="small" style="margin: 0 4px;" />
+          <span class="switch-label" :class="{ 'is-active': hideStudentName }">隐藏</span>
+        </div>
+      </div>
       <div class="timetable-scroll">
         <table class="timetable">
           <thead>
@@ -85,7 +92,7 @@
                   class="cell-course"
                   :style="{ borderLeftColor: course.color }"
                 >
-                  <span class="cell-name">{{ course.student_name }}</span>
+                  <span :class="['cell-name', { 'cell-name--hidden': hideStudentName }]">{{ course.student_name }}</span>
                   <span class="cell-time">{{ course.start_time }}-{{ course.end_time }}</span>
                 </div>
               </td>
@@ -114,6 +121,7 @@ const todayStr = dayjs().format('YYYY-MM-DD')
 const currentMonth = ref(dayjs().format('YYYY-MM'))
 const activeDate = ref(todayStr)
 const monthCourses = ref([])
+const hideStudentName = ref(false)
 
 // 获取当前教师信息
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')

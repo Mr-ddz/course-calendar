@@ -172,15 +172,33 @@
 
 /* 课程 timetable */
 .timetable-wrapper {
-  max-width: 960px;
+  max-width: 1080px;
   margin: 12px auto 24px;
   padding: 0 20px;
+}
+.timetable-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 .timetable-title {
   font-size: 17px;
   font-weight: 700;
   color: #303133;
-  margin-bottom: 10px;
+}
+.timetable-switch {
+  display: flex;
+  align-items: center;
+}
+.timetable-switch .switch-label {
+  font-size: 12px;
+  color: #909399;
+  transition: color 0.2s;
+}
+.timetable-switch .switch-label.is-active {
+  color: #303133;
+  font-weight: 600;
 }
 .timetable-scroll {
   overflow-x: auto;
@@ -250,6 +268,9 @@
 .cell-name {
   font-weight: 600;
   color: #303133;
+}
+.cell-name--hidden {
+  visibility: hidden;
 }
 .cell-time {
   color: #909399;

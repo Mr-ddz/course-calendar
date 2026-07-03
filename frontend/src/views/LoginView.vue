@@ -38,7 +38,6 @@
           </el-button>
         </el-form-item>
       </el-form>
-      <p v-if="error" class="login-error">{{ error }}</p>
     </div>
   </div>
 </template>
@@ -52,7 +51,6 @@ import { login } from '../api/index.js'
 const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
-const error = ref('')
 
 const form = reactive({
   username: '',
@@ -69,7 +67,6 @@ async function handleLogin() {
   if (!valid) return
 
   loading.value = true
-  error.value = ''
 
   try {
     const res = await login(form.username, form.password)
@@ -81,9 +78,7 @@ async function handleLogin() {
     ElMessage.success(`欢迎回来，${teacher.name}`)
     router.push('/')
   } catch (err) {
-    console.log(err)
     const msg = err.response?.data?.error || '登录失败'
-    error.value = msg
     ElMessage.error(msg)
   } finally {
     loading.value = false

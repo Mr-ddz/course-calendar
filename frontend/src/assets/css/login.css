@@ -29,12 +29,6 @@
   font-size: 14px;
   margin-bottom: 28px;
 }
-.login-error {
-  color: #f56c6c;
-  text-align: center;
-  font-size: 13px;
-  margin-top: 12px;
-}
 @media (max-width: 480px) {
   .login-card {
     width: 92%;

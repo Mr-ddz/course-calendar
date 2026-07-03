@@ -14,11 +14,15 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// 响应拦截器：token 过期时跳回登录页
+// 响应拦截器：token 过期时跳回登录页（排除登录接口）
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response && error.response.status === 401) {
+      // 登录接口的 401 不需要重定向，让页面自己处理错误提示
+      if (error.config.url === '/login') {
+        return Promise.reject(error)
+      }
       localStorage.removeItem('token')
       localStorage.removeItem('teacher')
       window.location.href = '/login'

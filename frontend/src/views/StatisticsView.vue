@@ -127,8 +127,8 @@
           :total="searchResult.total"
           layout="total, sizes, prev, pager, next"
           small
-          @size-change="doSearch"
-          @current-change="doSearch"
+          @size-change="onPageSizeChange"
+          @current-change="onPageChange"
         />
       </div>
     </div>
@@ -229,6 +229,45 @@ async function doSearch() {
   // 加载搜索表格
   searchLoading.value = true
   try {
+    const res = await searchCourses(params)
+    searchResult.data = res.data.data || []
+    searchResult.total = res.data.total || 0
+  } catch (err) {
+    console.error('搜索失败:', err)
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+// 分页切换时只加载表格数据，不重置页码
+function onPageChange(page) {
+  searchPage.value = page
+  loadSearchOnly()
+}
+
+// 切换每页条数时重置到第一页
+function onPageSizeChange() {
+  searchPage.value = 1
+  loadSearchOnly()
+}
+
+// 只加载搜索表格（不重置页码，不加载统计）
+async function loadSearchOnly() {
+  searchLoading.value = true
+  try {
+    const params = {
+      page: searchPage.value,
+      page_size: searchPageSize.value
+    }
+    if (searchDateRange.value) {
+      params.start_date = searchDateRange.value[0]
+      params.end_date = searchDateRange.value[1]
+    }
+    if (searchForm.student_name) params.student_name = searchForm.student_name
+    if (searchForm.grade) params.grade = searchForm.grade
+    if (searchForm.attended !== '' && searchForm.attended !== null) {
+      params.attended = String(searchForm.attended)
+    }
     const res = await searchCourses(params)
     searchResult.data = res.data.data || []
     searchResult.total = res.data.total || 0
