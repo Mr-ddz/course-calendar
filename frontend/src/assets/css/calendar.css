@@ -116,16 +116,13 @@
   box-shadow: 0 0 0 1px #409eff;
 }
 .cal-day--other {
-  opacity: 0.45;
+  visibility: hidden;
 }
 .cal-day-number {
   font-size: 15px;
   font-weight: 700;
   color: #303133;
   line-height: 1.5;
-}
-.cal-day--other .cal-day-number {
-  color: #c0c4cc;
 }
 .cal-day-students {
   display: flex;
@@ -253,6 +250,12 @@
 }
 .course-cell {
   background: #fff0f3;
+}
+.cell-course--span {
+  position: relative;
+  z-index: 1;
+  margin-bottom: -28px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 .cell-course {
   font-size: 11px;
