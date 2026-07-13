@@ -36,6 +36,31 @@ function authMiddleware(req, res, next) {
 // 所有 /api/* 请求都经过认证检查
 app.use('/api', authMiddleware);
 
+// ========== 登录频率限制（防暴力破解） ==========
+const loginAttempts = {};
+app.use('/api', (req, res, next) => {
+  if (req.path !== '/login') return next();
+
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+
+  if (loginAttempts[ip] && now - loginAttempts[ip].time > 15 * 60 * 1000) {
+    delete loginAttempts[ip];
+  }
+
+  if (!loginAttempts[ip]) {
+    loginAttempts[ip] = { count: 0, time: now };
+  }
+
+  loginAttempts[ip].count++;
+
+  if (loginAttempts[ip].count > 10) {
+    return res.status(429).json({ error: '登录尝试次数过多，请15分钟后再试' });
+  }
+
+  next();
+});
+
 // ========== 登录 / 登出 ==========
 
 // POST /api/login — 登录
