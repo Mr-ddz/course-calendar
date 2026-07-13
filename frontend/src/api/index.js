@@ -45,6 +45,20 @@ export function getTeachers() {
   return api.get('/teachers')
 }
 
+
+export function register(email, password, extra = {}) {
+  return api.post('/register', { email, password, ...extra })
+}
+export function adminGetTeachers() {
+  return api.get('/admin/teachers')
+}
+export function adminAddTeacher(data) {
+  return api.post('/admin/teachers', data)
+}
+export function adminUpdateTeacher(id, data) {
+  return api.put(`/admin/teachers/${id}`, data)
+}
+
 // ===== 学生 =====
 export function getStudents(params) {
   return api.get('/students', { params })

@@ -4,7 +4,7 @@
     <header class="detail-header">
       <div class="detail-header-row">
         <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
-        <h1 class="detail-title"><img src="../assets/images/logo.svg" class="title-icon" /> {{ teacherName }}的课程表</h1>
+        <h1 class="detail-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> {{ teacherName }}的课程表</h1>
         <div class="detail-user">
           <span class="detail-user-name">{{ teacherName }}</span>
           <el-button size="small" class="detail-logout-btn" @click="handleLogout">退出</el-button>
@@ -14,13 +14,19 @@
         <el-button
           size="small"
           :type="$route.name === 'calendar' ? 'primary' : 'default'"
-          @click="$router.push('/')"
+          @click="$router.push('/calendar')"
         >📅 月历</el-button>
         <el-button
           size="small"
           :type="$route.name === 'statistics' ? 'primary' : 'default'"
           @click="$router.push('/statistics')"
         >📊 统计</el-button>
+        <el-button
+          size="small"
+          v-if="isAdmin"
+          :type="$route.name === 'admin-users' ? 'primary' : 'default'"
+          @click="$router.push('/admin/users')"
+        >👤 用户</el-button>
       </div>
       <!-- 日导航 -->
       <div class="detail-nav">

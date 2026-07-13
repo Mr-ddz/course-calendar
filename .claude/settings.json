@@ -80,7 +80,21 @@
       "Bash(nginx -V)",
       "Bash(find /etc/nginx -name \"*.conf\" -o -name \"ketabiao*\" 2>/dev/null | head -10 *)",
       "Read(//etc/**)",
-      "Read(//etc/letsencrypt/live/**)"
+      "Read(//etc/letsencrypt/live/**)",
+      "Bash(sed -i '' \"s|router.push\\('/'\\)|router.push\\('/calendar'\\)|\" views/LoginView.vue)",
+      "Bash(sed -i '' 's|$router.push\\('\\\\''/'\\\\''\\)|$router.push\\('\\\\''/calendar'\\\\''\\)|' views/CalendarView.vue)",
+      "Bash(sed -i '' 's|$router.push\\('\\\\''/'\\\\''\\)|$router.push\\('\\\\''/calendar'\\\\''\\)|' views/StatisticsView.vue)",
+      "Bash(sed -i '' 's|$router.push\\('\\\\''/'\\\\''\\)|$router.push\\('\\\\''/calendar'\\\\''\\)|' views/DayDetailView.vue)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3002/calendar)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3002/login)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3002/statistics)",
+      "Bash(curl -s -X POST http://localhost:3002/api/login -H 'Content-Type: application/json' -d '{\"username\":\"test\",\"password\":\"123456\"}')",
+      "Bash(sed -i '' 's/`SELECT id, name, username, created_at FROM teachers ORDER BY id`/`SELECT id, name, username, email, source, status, created_at FROM teachers ORDER BY id`/' /Users/admin/Desktop/project/calendar/backend/seed.js)",
+      "Bash(sed -i '' \"s/console.log\\(\\\\`  \\\\${t.id} | \\\\${t.name} | \\\\${t.username} | 创建于 \\\\${t.created_at}\\\\`\\)/console.log\\(\\\\`  \\\\${t.id} | \\\\${t.name} | \\\\${t.username} | 来源:\\\\${t.source || 'admin'} | 状态:\\\\${t.status || 'active'} | 创建于 \\\\${t.created_at}\\\\`\\)/\" /Users/admin/Desktop/project/calendar/backend/seed.js)",
+      "Bash(curl -s -o /dev/null -w \"注册页: HTTP %{http_code}\" \"http://localhost:3002/register\")",
+      "Bash(node -c /Users/admin/Desktop/project/calendar/backend/server.js)",
+      "Bash(node -c /Users/admin/Desktop/project/calendar/backend/database.js)",
+      "Bash(node -c /Users/admin/Desktop/project/calendar/backend/seed.js)"
     ]
   }
 }

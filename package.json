@@ -5,7 +5,9 @@
   "scripts": {
     "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
     "start": "cd backend && node server.js",
-    "dev:backend": "cd backend && node server.js",
-    "dev:frontend": "cd frontend && npm run dev"
+    "backend": "cd backend && node server.js",
+    "frontend": "cd frontend && npm run dev",
+    "dev": "npm run stop -s 2>/dev/null; (cd backend && node server.js &) && sleep 2 && (cd frontend && npm run dev)",
+    "stop": "lsof -ti:3002 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/null; echo '已停止'"
   }
 }

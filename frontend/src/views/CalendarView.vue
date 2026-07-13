@@ -2,7 +2,7 @@
   <div class="calendar-page">
     <header class="cal-header">
       <div class="cal-header-top">
-        <h1 class="cal-title"><img src="../assets/images/logo.svg" class="title-icon" /> {{ teacherName }}的课程表</h1>
+        <h1 class="cal-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> {{ teacherName }}的课程表</h1>
         <div class="cal-user">
           <span class="cal-user-name">{{ teacherName }}</span>
           <el-button size="small" @click="handleLogout">退出</el-button>
@@ -12,7 +12,7 @@
         <el-button
           :type="$route.name === 'calendar' ? 'primary' : 'default'"
           size="small"
-          @click="$router.push('/')"
+          @click="$router.push('/calendar')"
         >📅 月历</el-button>
         <el-button
           :type="$route.name === 'statistics' ? 'primary' : 'default'"

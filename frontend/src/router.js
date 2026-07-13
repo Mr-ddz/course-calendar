@@ -1,25 +1,38 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import LandingView from './views/LandingView.vue'
 import CalendarView from './views/CalendarView.vue'
 import DayDetailView from './views/DayDetailView.vue'
 import LoginView from './views/LoginView.vue'
 import StatisticsView from './views/StatisticsView.vue'
+import RegisterView from './views/RegisterView.vue'
+import AdminUsersView from './views/AdminUsersView.vue'
 
 const routes = [
+  {
+    path: '/',
+    name: 'landing',
+    component: LandingView
+  },
   {
     path: '/login',
     name: 'login',
     component: LoginView,
-    // 已登录再访问 /login 则跳回首页
     beforeEnter: (to, from, next) => {
-      if (localStorage.getItem('token')) {
-        next('/')
-      } else {
-        next()
-      }
+      if (localStorage.getItem('token')) next('/calendar')
+      else next()
     }
   },
   {
-    path: '/',
+    path: '/register',
+    name: 'register',
+    component: RegisterView,
+    beforeEnter: (to, from, next) => {
+      if (localStorage.getItem('token')) next('/calendar')
+      else next()
+    }
+  },
+  {
+    path: '/calendar',
     name: 'calendar',
     component: CalendarView,
     meta: { requiresAuth: true }
@@ -36,6 +49,12 @@ const routes = [
     name: 'statistics',
     component: StatisticsView,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/users',
+    name: 'admin-users',
+    component: AdminUsersView,
+    meta: { requiresAuth: true }
   }
 ]
 
@@ -44,7 +63,6 @@ const router = createRouter({
   routes
 })
 
-// 全局前置守卫：未登录跳转登录页
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !localStorage.getItem('token')) {
     next('/login')

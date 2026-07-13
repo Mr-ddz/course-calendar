@@ -15,7 +15,7 @@ app.use(express.json());
 // 通过后在 req.teacher 上挂载教师信息
 function authMiddleware(req, res, next) {
   // 登录接口不需要验证（Express 挂载在 /api 下，req.path 不包含 /api）
-  if (req.path === '/login') return next();
+  if (req.path === '/login' || req.path === '/register') return next();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -36,26 +36,34 @@ function authMiddleware(req, res, next) {
 // 所有 /api/* 请求都经过认证检查
 app.use('/api', authMiddleware);
 
-// ========== 登录频率限制（防暴力破解） ==========
-const loginAttempts = {};
+// ========== 频率限制（防暴力破解 + 防注册攻击） ==========
+const rateLimitStore = {};
 app.use('/api', (req, res, next) => {
-  if (req.path !== '/login') return next();
-
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
   const now = Date.now();
 
-  if (loginAttempts[ip] && now - loginAttempts[ip].time > 15 * 60 * 1000) {
-    delete loginAttempts[ip];
+  if (!rateLimitStore[ip]) {
+    rateLimitStore[ip] = { login: { count: 0, time: now }, register: { count: 0, time: now } };
   }
 
-  if (!loginAttempts[ip]) {
-    loginAttempts[ip] = { count: 0, time: now };
+  if (req.path === '/login') {
+    if (now - rateLimitStore[ip].login.time > 15 * 60 * 1000) {
+      rateLimitStore[ip].login = { count: 0, time: now };
+    }
+    rateLimitStore[ip].login.count++;
+    if (rateLimitStore[ip].login.count > 10) {
+      return res.status(429).json({ error: '登录尝试次数过多，请15分钟后再试' });
+    }
   }
 
-  loginAttempts[ip].count++;
-
-  if (loginAttempts[ip].count > 10) {
-    return res.status(429).json({ error: '登录尝试次数过多，请15分钟后再试' });
+  if (req.path === '/register') {
+    if (now - rateLimitStore[ip].register.time > 60 * 60 * 1000) {
+      rateLimitStore[ip].register = { count: 0, time: now };
+    }
+    rateLimitStore[ip].register.count++;
+    if (rateLimitStore[ip].register.count > 3) {
+      return res.status(429).json({ error: '注册尝试次数过多，请1小时后再试' });
+    }
   }
 
   next();
@@ -73,7 +81,7 @@ app.post('/api/login', (req, res) => {
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const teacher = db.prepare(
-      `SELECT id, name, username FROM teachers WHERE username = ? AND password = ?`
+      `SELECT id, name, username, email, source, status FROM teachers WHERE username = ? AND password = ? AND status != 'disabled'`
     ).get(username, hash);
 
     if (!teacher) {
@@ -87,7 +95,7 @@ app.post('/api/login', (req, res) => {
     res.json({
       data: {
         token,
-        teacher: { id: teacher.id, name: teacher.name, username: teacher.username }
+        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active' }
       }
     });
   } catch (err) {
@@ -522,6 +530,124 @@ app.get('/api/courses/statistics', (req, res) => {
   }
 });
 
+
+
+// POST /api/register — 邮箱注册
+app.post('/api/register', (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: '请输入邮箱和密码' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: '密码至少6位' });
+    }
+
+    // 防机器人：检查蜜罐字段（机器人会填，人看不见）
+    if (req.body.website) {
+      return res.status(400).json({ error: '无效的注册请求' });
+    }
+
+    // 防机器人：检查提交时间戳（机器人通常立即提交）
+    const now = Date.now();
+    if (req.body._ts) {
+      const elapsed = now - parseInt(req.body._ts);
+      if (elapsed < 3000) {
+        return res.status(400).json({ error: '请稍后再试' });
+      }
+    }
+
+    // 检查邮箱是否已注册
+    const existing = db.prepare(`SELECT id FROM teachers WHERE email = ?`).get(email);
+    if (existing) {
+      return res.status(400).json({ error: '该邮箱已注册' });
+    }
+
+    // 用邮箱前缀作为用户名
+    const username = email.split('@')[0];
+    // 去重：如果用户名已存在，加随机后缀
+    let finalUsername = username;
+    let count = 1;
+    while (db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(finalUsername)) {
+      finalUsername = username + count;
+      count++;
+    }
+
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const result = db.prepare(
+      `INSERT INTO teachers (name, username, password, email, source, status) VALUES (?, ?, ?, ?, 'email', 'active')`
+    ).run(finalUsername, finalUsername, hash, email);
+
+    const token = crypto.randomBytes(48).toString('hex');
+    db.prepare(`UPDATE teachers SET token = ? WHERE id = ?`).run(token, result.lastInsertRowid);
+
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
+    res.status(201).json({ data: { token, teacher } });
+  } catch (err) {
+    console.error('注册失败:', err);
+    res.status(500).json({ error: '注册失败' });
+  }
+});
+
+// ========== Admin 用户管理 ==========
+
+// 获取所有教师（仅 admin）
+app.get('/api/admin/teachers', (req, res) => {
+  try {
+    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
+    const teachers = db.prepare(`SELECT id, name, username, email, source, status, created_at FROM teachers ORDER BY id`).all();
+    res.json({ data: teachers });
+  } catch (err) {
+    console.error('获取教师列表失败:', err);
+    res.status(500).json({ error: '获取失败' });
+  }
+});
+
+// Admin 手动添加教师
+app.post('/api/admin/teachers', (req, res) => {
+  try {
+    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
+    const { name, username, password } = req.body;
+    if (!name || !username || !password) {
+      return res.status(400).json({ error: '请填写姓名、用户名和密码' });
+    }
+    const existing = db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(username);
+    if (existing) return res.status(400).json({ error: '用户名已存在' });
+
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const result = db.prepare(
+      `INSERT INTO teachers (name, username, password, source, status) VALUES (?, ?, ?, 'admin', 'active')`
+    ).run(name, username, hash);
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
+    res.status(201).json({ data: teacher });
+  } catch (err) {
+    console.error('添加教师失败:', err);
+    res.status(500).json({ error: '添加失败' });
+  }
+});
+
+// 更新教师状态（禁用/启用）
+app.put('/api/admin/teachers/:id', (req, res) => {
+  try {
+    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
+    const { id } = req.params;
+    if (parseInt(id) === ADMIN_ID) return res.status(400).json({ error: '不能禁用管理员账号' });
+    const { status, name, password } = req.body;
+    const updates = [];
+    const params = [];
+    if (status) { updates.push('status = ?'); params.push(status); }
+    if (name) { updates.push('name = ?'); params.push(name); }
+    if (password) { updates.push('password = ?'); params.push(crypto.createHash('sha256').update(password).digest('hex')); }
+    if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
+    params.push(id);
+    db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(id);
+    res.json({ data: teacher });
+  } catch (err) {
+    console.error('更新教师失败:', err);
+    res.status(500).json({ error: '更新失败' });
+  }
+});
 // ========== 生产环境：提供前端静态文件 ==========
 const distPath = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(distPath));

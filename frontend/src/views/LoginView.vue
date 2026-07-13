@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="login-title"><img src="../assets/images/logo.svg" class="title-icon" /> 课表侠</h1>
+      <h1 class="login-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> 课表侠</h1>
       <p class="login-subtitle">请登录以继续</p>
       <el-form
         ref="formRef"
@@ -38,6 +38,9 @@
           </el-button>
         </el-form-item>
       </el-form>
+      <p class="register-link">
+        没有账号？<a href="javascript:void(0)" @click="$router.push('/register')">免费注册</a>
+      </p>
     </div>
   </div>
 </template>
@@ -76,7 +79,7 @@ async function handleLogin() {
     localStorage.setItem('teacher', JSON.stringify(teacher))
 
     ElMessage.success(`欢迎回来，${teacher.name}`)
-    router.push('/')
+    router.push('/calendar')
   } catch (err) {
     const msg = err.response?.data?.error || '登录失败'
     ElMessage.error(msg)
@@ -90,4 +93,6 @@ async function handleLogin() {
 @import "../assets/css/login.css";
 
 .title-icon { height: 1.8em; width: auto; display: block; }
+.register-link { text-align: center; margin-top: 16px; font-size: 13px; color: #909399; }
+.register-link a { color: #409eff; text-decoration: none; font-weight: 500; }
 </style>

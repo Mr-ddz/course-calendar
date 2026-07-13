@@ -35,11 +35,11 @@ function hashPassword(pwd) {
 }
 
 if (command === 'list') {
-  const teachers = db.prepare(`SELECT id, name, username, created_at FROM teachers ORDER BY id`).all();
+  const teachers = db.prepare(`SELECT id, name, username, email, source, status, created_at FROM teachers ORDER BY id`).all();
   console.log('\n📋 教师列表：');
   console.log('─'.repeat(60));
   teachers.forEach(t => {
-    console.log(`  ${t.id} | ${t.name} | ${t.username} | 创建于 ${t.created_at}`);
+    console.log(`  ${t.id} | ${t.name} | ${t.username} | 来源:${t.source || 'admin'} | 状态:${t.status || 'active'} | 创建于 ${t.created_at}`);
   });
   if (!teachers.length) console.log('  (暂无教师)');
   console.log();

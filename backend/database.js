@@ -119,6 +119,9 @@ if (!teachersExist) {
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       token TEXT,
+      email TEXT DEFAULT '',
+      source TEXT DEFAULT 'admin',
+      status TEXT DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -127,6 +130,19 @@ if (!teachersExist) {
   db.prepare(
     `INSERT INTO teachers (name, username, password) VALUES (?, ?, ?)`
   ).run('管理员', 'admin', hash);
+} else {
+  // 兼容旧表：补充字段
+  const teacherCols = db.prepare(`SELECT name FROM pragma_table_info('teachers')`).all().map(r => r.name);
+  const teacherFields = {
+    email: "TEXT DEFAULT ''",
+    source: "TEXT DEFAULT 'admin'",
+    status: "TEXT DEFAULT 'active'"
+  };
+  for (const [name, def] of Object.entries(teacherFields)) {
+    if (!teacherCols.includes(name)) {
+      db.exec(`ALTER TABLE teachers ADD COLUMN ${name} ${def}`);
+    }
+  }
 }
 
 // ========== 3. 学生表 ==========

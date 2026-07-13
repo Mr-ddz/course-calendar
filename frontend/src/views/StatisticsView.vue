@@ -10,8 +10,9 @@
         </div>
       </div>
       <div class="cal-tabs" style="margin-bottom: 8px; display: flex; gap: 6px;">
-        <el-button size="small" @click="$router.push('/')">📅 月历</el-button>
+        <el-button size="small" @click="$router.push('/calendar')">📅 月历</el-button>
         <el-button size="small" type="primary" @click="$router.push('/statistics')">📊 统计</el-button>
+        <el-button v-if="isAdmin" size="small" @click="$router.push('/admin/users')">👤 用户</el-button>
       </div>
 
       <!-- 统计周期切换 -->
