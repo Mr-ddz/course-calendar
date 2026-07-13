@@ -102,6 +102,9 @@
         </table>
       </div>
     </div>
+  <div class="beian-footer">
+    <a href="https://beian.miit.gov.cn/" target="_blank">辽ICP备2026015173号-1</a>
+  </div>
   </div>
 </template>
 
@@ -266,4 +269,6 @@ onMounted(() => {
 @import "../assets/css/calendar.css";
 
 .title-icon { height: 1.8em; width: auto; display: block; }
+.beian-footer { text-align: center; padding: 10px 20px 16px; font-size: 11px; }
+.beian-footer a { color: #bbb; text-decoration: none; }
 </style>

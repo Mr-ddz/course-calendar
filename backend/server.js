@@ -81,7 +81,7 @@ app.post('/api/login', (req, res) => {
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const teacher = db.prepare(
-      `SELECT id, name, username, email, source, status FROM teachers WHERE username = ? AND password = ? AND status != 'disabled'`
+      `SELECT id, name, username, email, source, status FROM teachers WHERE username = ? AND password = ? AND status = 'active'`
     ).get(username, hash);
 
     if (!teacher) {
@@ -532,29 +532,23 @@ app.get('/api/courses/statistics', (req, res) => {
 
 
 
-// POST /api/register — 邮箱注册
+// POST /api/register — 邮箱注册（管理员审核后生效）
 app.post('/api/register', (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: '请输入邮箱和密码' });
+    const { name, email, password, confirm_password } = req.body;
+    if (!name || !email || !password || !confirm_password) {
+      return res.status(400).json({ error: '请填写所有必填字段' });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: '密码至少6位' });
     }
-
-    // 防机器人：检查蜜罐字段（机器人会填，人看不见）
-    if (req.body.website) {
-      return res.status(400).json({ error: '无效的注册请求' });
+    if (password !== confirm_password) {
+      return res.status(400).json({ error: '两次输入的密码不一致' });
     }
 
-    // 防机器人：检查提交时间戳（机器人通常立即提交）
-    const now = Date.now();
-    if (req.body._ts) {
-      const elapsed = now - parseInt(req.body._ts);
-      if (elapsed < 3000) {
-        return res.status(400).json({ error: '请稍后再试' });
-      }
+    // 防机器人
+    if (req.body.website) {
+      return res.status(400).json({ error: '无效的注册请求' });
     }
 
     // 检查邮箱是否已注册
@@ -563,26 +557,18 @@ app.post('/api/register', (req, res) => {
       return res.status(400).json({ error: '该邮箱已注册' });
     }
 
-    // 用邮箱前缀作为用户名
-    const username = email.split('@')[0];
-    // 去重：如果用户名已存在，加随机后缀
-    let finalUsername = username;
-    let count = 1;
-    while (db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(finalUsername)) {
-      finalUsername = username + count;
-      count++;
+    // 检查用户名是否已存在
+    const nameExists = db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(name);
+    if (nameExists) {
+      return res.status(400).json({ error: '该用户名已被使用' });
     }
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
-    const result = db.prepare(
-      `INSERT INTO teachers (name, username, password, email, source, status) VALUES (?, ?, ?, ?, 'email', 'active')`
-    ).run(finalUsername, finalUsername, hash, email);
+    db.prepare(
+      `INSERT INTO teachers (name, username, password, email, source, status) VALUES (?, ?, ?, ?, 'email', 'pending')`
+    ).run(name, name, hash, email);
 
-    const token = crypto.randomBytes(48).toString('hex');
-    db.prepare(`UPDATE teachers SET token = ? WHERE id = ?`).run(token, result.lastInsertRowid);
-
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
-    res.status(201).json({ data: { token, teacher } });
+    res.json({ message: '注册成功，请等待管理员审核' });
   } catch (err) {
     console.error('注册失败:', err);
     res.status(500).json({ error: '注册失败' });

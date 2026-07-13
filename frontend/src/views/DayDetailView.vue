@@ -224,6 +224,9 @@
       </template>
     </el-dialog>
   </div>
+  <div class="beian-footer" style="text-align:center;padding:10px 20px 16px;font-size:11px;">
+    <a href="https://beian.miit.gov.cn/" target="_blank" style="color:#bbb;text-decoration:none;">辽ICP备2026015173号-1</a>
+  </div>
 </template>
 
 <script setup>

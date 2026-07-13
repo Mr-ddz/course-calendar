@@ -133,6 +133,9 @@
         />
       </div>
     </div>
+  <div style="text-align:center;padding:10px 20px 16px;font-size:11px;background:#f5f7fa;">
+    <a href="https://beian.miit.gov.cn/" target="_blank" style="color:#bbb;text-decoration:none;">辽ICP备2026015173号-1</a>
+  </div>
   </div>
 </template>
 

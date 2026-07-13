@@ -42,6 +42,9 @@
         没有账号？<a href="javascript:void(0)" @click="$router.push('/register')">免费注册</a>
       </p>
     </div>
+    <div style="position: fixed; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,0.5);">
+      <a href="https://beian.miit.gov.cn/" target="_blank" style="color: rgba(255,255,255,0.5); text-decoration: none;">辽ICP备2026015173号-1</a>
+    </div>
   </div>
 </template>
 

@@ -34,20 +34,22 @@
         </el-table-column>
         <el-table-column label="来源" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.source === 'admin' ? '' : 'success'" size="small">
+            <el-tag :type="row.source === 'admin' ? '' : 'warning'" size="small">
               {{ row.source === 'admin' ? '管理员创建' : '邮箱注册' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'active' ? '正常' : '禁用' }}
+            <el-tag :type="row.status === 'active' ? 'success' : (row.status === 'pending' ? 'warning' : 'danger')" size="small">
+              {{ row.status === 'active' ? '正常' : (row.status === 'pending' ? '申请中' : '禁用') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160">
+        <el-table-column label="操作" width="200">
           <template #default="{ row }">
+            <el-button v-if="row.status === 'pending'" type="success" size="small" @click="approveUser(row)">通过</el-button>
+            <el-button v-if="row.status === 'pending'" type="danger" size="small" @click="rejectUser(row)">拒绝</el-button>
             <el-button v-if="row.status === 'active' && row.id !== 1" type="danger" size="small" plain @click="toggleStatus(row, 'disabled')">禁用</el-button>
             <el-button v-if="row.status === 'disabled'" type="success" size="small" plain @click="toggleStatus(row, 'active')">启用</el-button>
           </template>
@@ -133,6 +135,24 @@ async function toggleStatus(row, status) {
   } catch { /* cancel */ }
 }
 
+async function approveUser(row) {
+  try {
+    await ElMessageBox.confirm(`确定通过「${row.name}」的注册申请吗？`, '审核', { type: 'info' })
+    await adminUpdateTeacher(row.id, { status: 'active' })
+    ElMessage.success('已通过')
+    loadTeachers()
+  } catch { /* cancel */ }
+}
+
+async function rejectUser(row) {
+  try {
+    await ElMessageBox.confirm(`确定拒绝「${row.name}」的注册申请吗？\n该用户将被删除。`, '审核', { type: 'warning' })
+    await adminUpdateTeacher(row.id, { status: 'disabled' })
+    ElMessage.success('已拒绝')
+    loadTeachers()
+  } catch { /* cancel */ }
+}
+
 function resetAddForm() {
   addForm.value = { name: '', username: '', password: '' }
 }
@@ -151,6 +171,9 @@ onMounted(() => { loadTeachers() })
 </script>
 
 <style scoped>
+.beian-footer { text-align: center; padding: 16px 20px; font-size: 11px; }
+.beian-footer a { color: #bbb; text-decoration: none; }
+
 .admin-page {
   max-width: 960px; margin: 0 auto; min-height: 100vh;
   background: #f5f7fa; display: flex; flex-direction: column;

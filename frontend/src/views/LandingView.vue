@@ -114,6 +114,9 @@
     <!-- 页脚 -->
     <footer class="lp-footer">
       <p>&copy; 2026 课表侠. All rights reserved.</p>
+      <p style="margin-top: 4px; font-size: 11px;">
+        <a href="https://beian.miit.gov.cn/" target="_blank" style="color: #bbb; text-decoration: none;">辽ICP备2026015173号-1</a>
+      </p>
     </footer>
 
   </div>

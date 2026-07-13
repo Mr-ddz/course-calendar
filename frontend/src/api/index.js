@@ -46,8 +46,8 @@ export function getTeachers() {
 }
 
 
-export function register(email, password, extra = {}) {
-  return api.post('/register', { email, password, ...extra })
+export function register(data) {
+  return api.post('/register', data)
 }
 export function adminGetTeachers() {
   return api.get('/admin/teachers')
