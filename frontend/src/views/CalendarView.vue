@@ -234,6 +234,7 @@ async function handleLogout() {
     // 用户确认退出
     try { await logoutApi() } catch { /* 忽略接口报错 */ }
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('teacher')
     router.push('/login')
   } catch {

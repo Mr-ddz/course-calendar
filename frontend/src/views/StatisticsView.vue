@@ -324,6 +324,7 @@ async function handleLogout() {
     })
     try { await logoutApi() } catch { /* ignore */ }
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('teacher')
     router.push('/login')
   } catch { /* cancel */ }

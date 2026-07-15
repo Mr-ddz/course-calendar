@@ -76,9 +76,10 @@ async function handleLogin() {
 
   try {
     const res = await login(form.username, form.password)
-    const { token, teacher } = res.data.data
+    const { token, refresh_token, teacher } = res.data.data
 
     localStorage.setItem('token', token)
+    localStorage.setItem('refresh_token', refresh_token || '')
     localStorage.setItem('teacher', JSON.stringify(teacher))
 
     ElMessage.success(`欢迎回来，${teacher.name}`)

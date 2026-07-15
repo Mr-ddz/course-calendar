@@ -458,6 +458,7 @@ async function handleLogout() {
     })
     try { await logoutApi() } catch { /* 忽略接口报错 */ }
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('teacher')
     router.push('/login')
   } catch {

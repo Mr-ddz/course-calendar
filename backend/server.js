@@ -15,7 +15,7 @@ app.use(express.json());
 // 通过后在 req.teacher 上挂载教师信息
 function authMiddleware(req, res, next) {
   // 登录接口不需要验证（Express 挂载在 /api 下，req.path 不包含 /api）
-  if (req.path === '/login' || req.path === '/register') return next();
+  if (req.path === '/login' || req.path === '/register' || req.path === '/refresh') return next();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -23,10 +23,15 @@ function authMiddleware(req, res, next) {
   }
 
   const token = authHeader.slice(7);
-  const teacher = db.prepare(`SELECT id, name, username FROM teachers WHERE token = ?`).get(token);
+  const teacher = db.prepare(`SELECT id, name, username, token_expires_at FROM teachers WHERE token = ?`).get(token);
 
   if (!teacher) {
     return res.status(401).json({ error: '登录已过期，请重新登录' });
+  }
+
+  // 检查 token 是否过期（过期但不清除，让 refresh 接口处理）
+  if (teacher.token_expires_at && Date.now() > new Date(teacher.token_expires_at).getTime()) {
+    return res.status(401).json({ error: 'token_expired', message: 'Token 已过期，请刷新' });
   }
 
   req.teacher = teacher;
@@ -35,6 +40,45 @@ function authMiddleware(req, res, next) {
 
 // 所有 /api/* 请求都经过认证检查
 app.use('/api', authMiddleware);
+
+
+// POST /api/refresh — 刷新 token
+app.post('/api/refresh', (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+    if (!refresh_token) {
+      return res.status(400).json({ error: '缺少 refresh_token' });
+    }
+
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status, refresh_token_expires_at FROM teachers WHERE refresh_token = ?`).get(refresh_token);
+
+    if (!teacher) {
+      return res.status(401).json({ error: 'refresh_token 无效' });
+    }
+
+    // 检查 refresh_token 是否过期
+    if (teacher.refresh_token_expires_at && Date.now() > new Date(teacher.refresh_token_expires_at).getTime()) {
+      db.prepare(`UPDATE teachers SET refresh_token = NULL, refresh_token_expires_at = NULL WHERE id = ?`).run(teacher.id);
+      return res.status(401).json({ error: '登录已过期，请重新登录' });
+    }
+
+    // 生成新的 access token（2小时）
+    const newToken = crypto.randomBytes(48).toString('hex');
+    const newExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    db.prepare(`UPDATE teachers SET token = ?, token_expires_at = ? WHERE id = ?`).run(newToken, newExpiresAt, teacher.id);
+
+    res.json({
+      data: {
+        token: newToken,
+        refresh_token: refresh_token,
+        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active' }
+      }
+    });
+  } catch (err) {
+    console.error('刷新 token 失败:', err);
+    res.status(500).json({ error: '刷新失败' });
+  }
+});
 
 // ========== 频率限制（防暴力破解 + 防注册攻击） ==========
 const rateLimitStore = {};
@@ -88,14 +132,18 @@ app.post('/api/login', (req, res) => {
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
-    // 生成随机 token，记录登录时间
+    // 生成 access token（2小时）+ refresh token（7天）
     const token = crypto.randomBytes(48).toString('hex');
+    const refreshToken = crypto.randomBytes(48).toString('hex');
     const now = new Date().toISOString();
-    db.prepare(`UPDATE teachers SET token = ?, last_login_at = ? WHERE id = ?`).run(token, now, teacher.id);
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const refreshExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+    db.prepare(`UPDATE teachers SET token = ?, token_expires_at = ?, refresh_token = ?, refresh_token_expires_at = ?, last_login_at = ? WHERE id = ?`).run(token, expiresAt, refreshToken, refreshExpiresAt, now, teacher.id);
 
     res.json({
       data: {
         token,
+        refresh_token: refreshToken,
         teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active' }
       }
     });
@@ -636,6 +684,29 @@ app.put('/api/admin/teachers/:id', (req, res) => {
     res.status(500).json({ error: '更新失败' });
   }
 });
+
+// 删除教师及其所有数据
+app.delete('/api/admin/teachers/:id', (req, res) => {
+  try {
+    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
+    const { id } = req.params;
+    if (parseInt(id) === ADMIN_ID) return res.status(400).json({ error: '不能删除管理员账号' });
+
+    const teacher = db.prepare(`SELECT id, name FROM teachers WHERE id = ?`).get(id);
+    if (!teacher) return res.status(404).json({ error: '教师不存在' });
+
+    // 同步删除该教师的所有课程和学生
+    db.prepare(`DELETE FROM courses WHERE teacher_id = ?`).run(id);
+    db.prepare(`DELETE FROM students WHERE teacher_id = ?`).run(id);
+    db.prepare(`DELETE FROM teachers WHERE id = ?`).run(id);
+
+    res.json({ message: `已删除教师「${teacher.name}」及其所有数据` });
+  } catch (err) {
+    console.error('删除教师失败:', err);
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
 // ========== 生产环境：提供前端静态文件 ==========
 const distPath = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(distPath));

@@ -52,6 +52,7 @@
             <el-button v-if="row.status === 'pending'" type="danger" size="small" @click="rejectUser(row)">拒绝</el-button>
             <el-button v-if="row.status === 'active' && row.id !== 1" type="danger" size="small" plain @click="toggleStatus(row, 'disabled')">禁用</el-button>
             <el-button v-if="row.status === 'disabled'" type="success" size="small" plain @click="toggleStatus(row, 'active')">启用</el-button>
+            <el-button v-if="row.id !== 1" type="danger" size="small" plain @click="deleteUser(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -82,7 +83,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, logout as logoutApi } from '../api/index.js'
+import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeacher, logout as logoutApi } from '../api/index.js'
 
 const router = useRouter()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
@@ -153,6 +154,19 @@ async function rejectUser(row) {
   } catch { /* cancel */ }
 }
 
+async function deleteUser(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除「${row.name}」吗？\n这将同时删除该教师的所有课程和学生数据，不可恢复！`,
+      '确认删除',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await adminDeleteTeacher(row.id)
+    ElMessage.success('已删除')
+    loadTeachers()
+  } catch { /* cancel */ }
+}
+
 function resetAddForm() {
   addForm.value = { name: '', username: '', password: '' }
 }
@@ -162,6 +176,7 @@ async function handleLogout() {
     await ElMessageBox.confirm('确认退出登录？', '退出', { type: 'info' })
     try { await logoutApi() } catch { /* ignore */ }
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('teacher')
     router.push('/login')
   } catch { /* cancel */ }
