@@ -88,9 +88,10 @@ app.post('/api/login', (req, res) => {
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
-    // 生成随机 token
+    // 生成随机 token，记录登录时间
     const token = crypto.randomBytes(48).toString('hex');
-    db.prepare(`UPDATE teachers SET token = ? WHERE id = ?`).run(token, teacher.id);
+    const now = new Date().toISOString();
+    db.prepare(`UPDATE teachers SET token = ?, last_login_at = ? WHERE id = ?`).run(token, now, teacher.id);
 
     res.json({
       data: {
@@ -108,7 +109,8 @@ app.post('/api/login', (req, res) => {
 app.post('/api/logout', (req, res) => {
   try {
     if (req.teacher) {
-      db.prepare(`UPDATE teachers SET token = NULL WHERE id = ?`).run(req.teacher.id);
+      const now = new Date().toISOString();
+      db.prepare(`UPDATE teachers SET token = NULL, last_logout_at = ? WHERE id = ?`).run(now, req.teacher.id);
     }
     res.json({ message: '已退出登录' });
   } catch (err) {

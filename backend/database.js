@@ -122,6 +122,8 @@ if (!teachersExist) {
       email TEXT DEFAULT '',
       source TEXT DEFAULT 'admin',
       status TEXT DEFAULT 'active',
+      last_login_at TEXT DEFAULT NULL,
+      last_logout_at TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -136,7 +138,9 @@ if (!teachersExist) {
   const teacherFields = {
     email: "TEXT DEFAULT ''",
     source: "TEXT DEFAULT 'admin'",
-    status: "TEXT DEFAULT 'active'"
+    status: "TEXT DEFAULT 'active'",
+    last_login_at: "TEXT DEFAULT NULL",
+    last_logout_at: "TEXT DEFAULT NULL"
   };
   for (const [name, def] of Object.entries(teacherFields)) {
     if (!teacherCols.includes(name)) {

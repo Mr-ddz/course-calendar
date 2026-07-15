@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://kebiaoxia.cn/sitemap.xml
