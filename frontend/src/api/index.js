@@ -120,6 +120,12 @@ export function getTeachers() {
   return api.get('/teachers')
 }
 
+export function forgotPassword(email) {
+  return api.post('/forgot-password', { email })
+}
+export function resetPassword(token, password) {
+  return api.post('/reset-password', { token, password })
+}
 export function register(data) {
   return api.post('/register', data)
 }
@@ -168,6 +174,9 @@ export function searchCourses(params) {
 }
 export function getStatistics(params) {
   return api.get('/courses/statistics', { params })
+}
+export function exportCsv() {
+  return api.get('/courses/export-csv')
 }
 
 export default api

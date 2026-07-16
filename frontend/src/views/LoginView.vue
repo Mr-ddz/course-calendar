@@ -13,7 +13,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="form.username"
-            placeholder="用户名"
+            placeholder="用户名 / 邮箱"
             prefix-icon="User"
           />
         </el-form-item>
@@ -40,6 +40,8 @@
       </el-form>
       <p class="register-link">
         没有账号？<a href="javascript:void(0)" @click="$router.push('/register')">免费注册</a>
+        &nbsp;|&nbsp;
+        <a href="javascript:void(0)" @click="$router.push('/forgot-password')">忘记密码</a>
       </p>
     </div>
     <div style="position: fixed; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,0.5);">

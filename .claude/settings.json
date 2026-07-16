@@ -100,7 +100,32 @@
       "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT name, last_login_at, last_logout_at FROM teachers WHERE id=1;\")",
       "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT COUNT\\(*\\) as students FROM students;\")",
       "Read(//root/backend/data/**)",
-      "Bash(ssh root@39.106.110.124 \"crontab -l 2>/dev/null; echo '---'; ls -la /root/backup/ 2>/dev/null | head -10\")"
+      "Bash(ssh root@39.106.110.124 \"crontab -l 2>/dev/null; echo '---'; ls -la /root/backup/ 2>/dev/null | head -10\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('✅ admin 密码恢复成功' if 'data' in d else '❌ 失败'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3002/)",
+      "Bash(pm2 delete *)",
+      "Bash(pm2 start *)",
+      "Bash(sed -i '' 's/const SMTP_HOST = process.env.SMTP_HOST || .*/const SMTP_HOST = process.env.SMTP_HOST || '\"'\"'smtp.126.com'\"'\"';/' /Users/admin/Desktop/project/calendar/backend/server.js)",
+      "Bash(sed -i '' \"s/const SMTP_USER = process.env.SMTP_USER || '';/const SMTP_USER = process.env.SMTP_USER || 'kebiaoxia@126.com';/\" /Users/admin/Desktop/project/calendar/backend/server.js)",
+      "Bash(sed -i '' \"s/const SMTP_PASS = process.env.SMTP_PASS || '';/const SMTP_PASS = process.env.SMTP_PASS || 'PHb7Mq59JWz4QCgg';/\" /Users/admin/Desktop/project/calendar/backend/server.js)",
+      "Bash(sed -i '' 's|const SITE_URL = process.env.SITE_URL || '\"'\"'http://localhost:3002'\"'\"';|const SITE_URL = process.env.SITE_URL || '\"'\"'https://kebiaoxia.cn'\"'\"';|' /Users/admin/Desktop/project/calendar/backend/server.js)",
+      "Bash(cat /root/.pm2/logs/course-calendar-error.log | grep \"Error:\" | head -5)",
+      "Read(//root/.pm2/logs/**)",
+      "Bash(pm2 list *)",
+      "Bash(cat /root/.pm2/logs/course-calendar-error.log 2>/dev/null)",
+      "Read(//root/.pm2/**)",
+      "Bash(pm2 logs *)",
+      "Bash(npm list *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3002/)",
+      "Bash(curl -s -X POST http://localhost:3002/api/forgot-password -H 'Content-Type: application/json' -d '{\"email\":\"kebiaoxia@126.com\"}')",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT name, email FROM teachers;\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"UPDATE teachers SET email='admin@test.com' WHERE id=1;\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('✅ 成功' if 'data' in d else f'❌ {d}'\\)\")",
+      "Bash(curl -s -X POST http://localhost:3002/api/login -H 'Content-Type: application/json' -d '{\"username\":\"admin@test.com\",\"password\":\"admin123\"}')",
+      "Bash(curl -s -X POST http://localhost:3002/api/register -H 'Content-Type: application/json' -d '{\"name\":\"测试用户\",\"email\":\"test@test.com\",\"password\":\"123456\",\"confirm_password\":\"123456\"}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'  ✅ 已通过: {d[\\\\\"data\\\\\"][\\\\\"status\\\\\"]}'\\)\")",
+      "Bash(curl -s -X POST http://localhost:3002/api/login -H 'Content-Type: application/json' -d '{\"username\":\"test@test.com\",\"password\":\"123456\"}')",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT id, name, username, email, status FROM teachers;\")"
     ]
   }
 }

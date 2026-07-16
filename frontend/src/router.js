@@ -6,6 +6,8 @@ import LoginView from './views/LoginView.vue'
 import StatisticsView from './views/StatisticsView.vue'
 import RegisterView from './views/RegisterView.vue'
 import AdminUsersView from './views/AdminUsersView.vue'
+import ForgotPasswordView from './views/ForgotPasswordView.vue'
+import ResetPasswordView from './views/ResetPasswordView.vue'
 
 const routes = [
   {
@@ -49,6 +51,24 @@ const routes = [
     name: 'statistics',
     component: StatisticsView,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: ForgotPasswordView,
+    beforeEnter: (to, from, next) => {
+      if (localStorage.getItem('token')) next('/calendar')
+      else next()
+    }
+  },
+  {
+    path: '/reset-password',
+    name: 'reset-password',
+    component: ResetPasswordView,
+    beforeEnter: (to, from, next) => {
+      if (localStorage.getItem('token')) next('/calendar')
+      else next()
+    }
   },
   {
     path: '/admin/users',

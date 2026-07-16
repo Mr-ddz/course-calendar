@@ -80,6 +80,7 @@
         <el-form-item>
           <el-button type="primary" @click="doSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
+          <el-button @click="exportCSV">📥 导出CSV</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -291,6 +292,41 @@ function resetSearch() {
 }
 
 // ===== 辅助函数 =====
+function exportCSV() {
+  const data = searchResult.data
+  if (!data || data.length === 0) {
+    ElMessage.warning('没有数据可导出')
+    return
+  }
+
+  // BOM for UTF-8 + headers
+  let csv = '\uFEFF日期,开始,结束,时长,学生,年级,每小时课时费,实收,签到,教师\n'
+
+  for (const r of data) {
+    const row = [
+      r.date,
+      r.start_time,
+      r.end_time,
+      calcDuration(r.start_time, r.end_time),
+      r.student_name,
+      r.grade || '',
+      r.hourly_fee,
+      r.attended ? calcReceivedFee(r) : '0',
+      r.attended ? '已到' : '未到',
+      r.teacher_name || ''
+    ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(',')
+    csv += row + '\n'
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = '课程数据_' + new Date().toISOString().slice(0, 10) + '.csv'
+  link.click()
+  URL.revokeObjectURL(link.href)
+  ElMessage.success('导出成功')
+}
+
 function formatHours(hours) {
   if (!hours) return '0h'
   const h = Math.floor(hours)

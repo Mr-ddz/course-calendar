@@ -2,7 +2,27 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const db = require('./database');
+
+// SMTP 邮件配置（从环境变量读取，不配置则不发邮件）
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.126.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
+const SMTP_USER = process.env.SMTP_USER || 'kebiaoxia@126.com';
+const SMTP_PASS = process.env.SMTP_PASS || 'PHb7Mq59JWz4QCgg';
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const SITE_URL = process.env.SITE_URL || 'https://kebiaoxia.cn';
+
+let transporter = null;
+if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS }
+  });
+  console.log('📧 邮件服务已配置 (' + SMTP_USER + ')');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -15,7 +35,7 @@ app.use(express.json());
 // 通过后在 req.teacher 上挂载教师信息
 function authMiddleware(req, res, next) {
   // 登录接口不需要验证（Express 挂载在 /api 下，req.path 不包含 /api）
-  if (req.path === '/login' || req.path === '/register' || req.path === '/refresh') return next();
+  if (req.path === '/login' || req.path === '/register' || req.path === '/refresh' || req.path === '/forgot-password' || req.path === '/reset-password') return next();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -110,6 +130,17 @@ app.use('/api', (req, res, next) => {
     }
   }
 
+  if (req.path === '/forgot-password') {
+    if (!rateLimitStore[ip].forgot) rateLimitStore[ip].forgot = { count: 0, time: now };
+    if (now - rateLimitStore[ip].forgot.time > 60 * 60 * 1000) {
+      rateLimitStore[ip].forgot = { count: 0, time: now };
+    }
+    rateLimitStore[ip].forgot.count++;
+    if (rateLimitStore[ip].forgot.count > 3) {
+      return res.status(429).json({ error: '操作过于频繁，请1小时后再试' });
+    }
+  }
+
   next();
 });
 
@@ -125,8 +156,8 @@ app.post('/api/login', (req, res) => {
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const teacher = db.prepare(
-      `SELECT id, name, username, email, source, status FROM teachers WHERE username = ? AND password = ? AND status = 'active'`
-    ).get(username, hash);
+      `SELECT id, name, username, email, source, status FROM teachers WHERE (username = ? OR email = ?) AND password = ? AND status = 'active'`
+    ).get(username, username, hash);
 
     if (!teacher) {
       return res.status(401).json({ error: '用户名或密码错误' });
@@ -704,6 +735,74 @@ app.delete('/api/admin/teachers/:id', (req, res) => {
   } catch (err) {
     console.error('删除教师失败:', err);
     res.status(500).json({ error: '删除失败' });
+  }
+});
+
+
+// POST /api/forgot-password — 发送密码重置邮件
+app.post('/api/forgot-password', (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: '请输入邮箱' });
+
+    const teacher = db.prepare(`SELECT id, name FROM teachers WHERE email = ?`).get(email);
+    // 不管邮箱是否存在，都返回成功（防止枚举邮箱）
+    if (!teacher) return res.json({ message: '如果该邮箱已注册，重置链接已发送' });
+
+    // 生成重置 token（1小时有效）
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    db.prepare(`UPDATE teachers SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?`).run(resetToken, expiresAt, teacher.id);
+
+    // 发送邮件
+    if (transporter) {
+      const resetUrl = `${SITE_URL}/reset-password?token=${resetToken}`;
+      transporter.sendMail({
+        from: SMTP_FROM,
+        to: email,
+        subject: '课表侠 - 密码重置',
+        html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+          <h2 style="color:#667eea;">课表侠</h2>
+          <p>您好，<strong>${teacher.name}</strong>：</p>
+          <p>请点击下方链接重置您的密码，链接有效期为 1 小时：</p>
+          <p style="text-align:center;margin:24px 0;">
+            <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">重置密码</a>
+          </p>
+          <p style="color:#999;font-size:12px;">如果这不是您本人操作，请忽略此邮件。</p>
+        </div>`
+      }).catch(e => console.error('发送邮件失败:', e));
+    } else {
+      console.log('📧 邮件未配置，重置链接:', resetToken);
+    }
+
+    res.json({ message: '如果该邮箱已注册，重置链接已发送' });
+  } catch (err) {
+    console.error('发送重置邮件失败:', err);
+    res.status(500).json({ error: '发送失败' });
+  }
+});
+
+// POST /api/reset-password — 使用 token 重置密码
+app.post('/api/reset-password', (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: '参数不完整' });
+    if (password.length < 6) return res.status(400).json({ error: '密码至少6位' });
+
+    const teacher = db.prepare(`SELECT id, reset_token_expires_at FROM teachers WHERE reset_token = ?`).get(token);
+    if (!teacher) return res.status(400).json({ error: '重置链接无效或已过期' });
+
+    if (teacher.reset_token_expires_at && Date.now() > new Date(teacher.reset_token_expires_at).getTime()) {
+      return res.status(400).json({ error: '重置链接已过期，请重新申请' });
+    }
+
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    db.prepare(`UPDATE teachers SET password = ?, reset_token = NULL, reset_token_expires_at = NULL, token = NULL, refresh_token = NULL, refresh_token_expires_at = NULL WHERE id = ?`).run(hash, teacher.id);
+
+    res.json({ message: '密码已重置，请重新登录' });
+  } catch (err) {
+    console.error('重置密码失败:', err);
+    res.status(500).json({ error: '重置失败' });
   }
 });
 

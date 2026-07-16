@@ -127,6 +127,8 @@ if (!teachersExist) {
       token_expires_at TEXT DEFAULT NULL,
       refresh_token TEXT DEFAULT NULL,
       refresh_token_expires_at TEXT DEFAULT NULL,
+      reset_token TEXT DEFAULT NULL,
+      reset_token_expires_at TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -146,7 +148,9 @@ if (!teachersExist) {
     last_logout_at: "TEXT DEFAULT NULL",
     token_expires_at: "TEXT DEFAULT NULL",
     refresh_token: "TEXT DEFAULT NULL",
-    refresh_token_expires_at: "TEXT DEFAULT NULL"
+    refresh_token_expires_at: "TEXT DEFAULT NULL",
+    reset_token: "TEXT DEFAULT NULL",
+    reset_token_expires_at: "TEXT DEFAULT NULL"
   };
   for (const [name, def] of Object.entries(teacherFields)) {
     if (!teacherCols.includes(name)) {
