@@ -158,7 +158,7 @@ app.post('/api/logout', (req, res) => {
   try {
     if (req.teacher) {
       const now = new Date().toISOString();
-      db.prepare(`UPDATE teachers SET token = NULL, last_logout_at = ? WHERE id = ?`).run(now, req.teacher.id);
+      db.prepare(`UPDATE teachers SET token = NULL, refresh_token = NULL, refresh_token_expires_at = NULL, last_logout_at = ? WHERE id = ?`).run(now, req.teacher.id);
     }
     res.json({ message: '已退出登录' });
   } catch (err) {

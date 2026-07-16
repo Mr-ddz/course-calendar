@@ -98,7 +98,9 @@
       "Read(//root/**)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'  ✅ {d[\\\\\"message\\\\\"]}'\\)\")",
       "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT name, last_login_at, last_logout_at FROM teachers WHERE id=1;\")",
-      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT COUNT\\(*\\) as students FROM students;\")"
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT COUNT\\(*\\) as students FROM students;\")",
+      "Read(//root/backend/data/**)",
+      "Bash(ssh root@39.106.110.124 \"crontab -l 2>/dev/null; echo '---'; ls -la /root/backup/ 2>/dev/null | head -10\")"
     ]
   }
 }
