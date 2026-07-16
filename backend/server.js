@@ -709,6 +709,27 @@ app.put('/api/admin/teachers/:id', (req, res) => {
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(id);
+
+    // 审核通过时发送邮件通知
+    if (status === 'active' && teacher.email && teacher.source === 'email' && transporter) {
+      const loginUrl = `${SITE_URL}/login`;
+      transporter.sendMail({
+        from: SMTP_FROM,
+        to: teacher.email,
+        subject: '课表侠 - 注册审核通过',
+        html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+          <h2 style="color:#667eea;">课表侠</h2>
+          <p>您好，<strong>${teacher.name}</strong>：</p>
+          <p>您在课表侠的注册申请已通过审核。</p>
+          <p>您现在可以使用注册时填写的邮箱或用户名登录，开始管理您的课程。</p>
+          <p style="text-align:center;margin:24px 0;">
+            <a href="${loginUrl}" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往登录</a>
+          </p>
+          <p style="color:#999;font-size:12px;">登录地址：${loginUrl}</p>
+        </div>`
+      }).catch(e => console.error('发送审核通知邮件失败:', e));
+    }
+
     res.json({ data: teacher });
   } catch (err) {
     console.error('更新教师失败:', err);
