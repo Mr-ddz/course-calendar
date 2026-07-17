@@ -92,13 +92,14 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import { getHoliday, loadHolidays } from '../assets/js/holidays.js'
 import { getCoursesRange } from '../api/index.js'
 
 const router = useRouter()
+const route = useRoute()
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 const weekDayHeaders = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
@@ -224,12 +225,20 @@ async function loadMonthCourses() {
 
 watch(currentMonth, () => { loadMonthCourses() })
 
-// 从详情页返回时重新加载数据
-watch(() => router.currentRoute.value.name, (name) => {
-  if (name === 'calendar') loadMonthCourses()
+// 从 query 参数恢复月份
+function restoreMonthFromQuery() {
+  const month = route.query.month
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    currentMonth.value = month
+  }
+}
+
+watch(() => route.query.month, () => {
+  restoreMonthFromQuery()
 })
 
 onMounted(() => {
+  restoreMonthFromQuery()
   loadMonthCourses()
   loadHolidays(dayjs().year()).then(() => { holidayVersion.value++ })
 })

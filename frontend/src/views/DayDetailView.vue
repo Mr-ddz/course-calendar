@@ -421,7 +421,9 @@ const disabledEndMinutes = computed(() => (hour) => {
 
 // 方法
 function goBack() {
-  router.push('/app/calendar')
+  // 返回月历时带上当前查看的月份，让月历定位到对应月份
+  const d = dayjs(dateStr.value)
+  router.push('/app/calendar?month=' + d.format('YYYY-MM'))
 }
 
 function changeDay(delta) {
