@@ -82,6 +82,8 @@ export async function loadHolidays(year) {
         } else if (info.target) {
           baseName = info.target.replace(/节$/, '')
           baseName = baseName === '春' ? '春节' : baseName
+          // 国务院安排：9月20日（周日）为国庆节补班
+          if (dateStr === '2026-09-20') baseName = '国庆'
         } else {
           baseName = info.name.replace(/节$/, '')
         }
