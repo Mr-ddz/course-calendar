@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <div class="register-header">
+      <div class="register-header" style="cursor:pointer" @click="$router.push('/')">
         <img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" />
         <h1 class="login-title">课表侠</h1>
       </div>

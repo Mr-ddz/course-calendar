@@ -167,43 +167,5 @@ onMounted(() => { loadTeachers() })
 </script>
 
 <style scoped>
-
-.admin-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff; padding: 16px 20px 12px;
-}
-.admin-header-top {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
-}
-.admin-title { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
-.admin-user { display: flex; align-items: center; gap: 8px; }
-.admin-user-name {
-  font-size: 13px; background: rgba(255,255,255,0.15);
-  padding: 3px 12px; border-radius: 20px;
-}
-.admin-user .el-button {
-  --el-button-bg-color: rgba(255,255,255,0.1);
-  --el-button-border-color: rgba(255,255,255,0.3);
-  --el-button-text-color: rgba(255,255,255,0.8);
-  --el-button-hover-bg-color: rgba(245,108,108,0.3);
-  --el-button-hover-border-color: #f56c6c;
-  --el-button-hover-text-color: #fff;
-}
-.cal-tabs .el-button {
-  --el-button-bg-color: rgba(255,255,255,0.15);
-  --el-button-border-color: rgba(255,255,255,0.3);
-  --el-button-text-color: #fff;
-  --el-button-hover-bg-color: rgba(255,255,255,0.25);
-}
-.admin-toolbar {
-  display: flex; align-items: center; justify-content: space-between; margin-top: 6px;
-}
-.admin-count { font-size: 13px; opacity: 0.8; }
-.admin-toolbar .el-button--primary {
-  --el-button-bg-color: #fff; --el-button-text-color: #667eea; --el-button-border-color: #fff;
-}
-.admin-table-wrapper {
-  background: #fff; margin: 0; padding: 20px; flex: 1;
-}
-.no-email { color: #ccc; }
+@import "../assets/css/admin-users.css";
 </style>

@@ -29,6 +29,7 @@
           >
             <template v-if="day">
               <div class="cal-day-number">{{ day.dayNum }}</div>
+              <div v-if="day.holiday" class="holiday-tag" :class="'holiday-tag--' + day.holiday.type">{{ day.holiday.name }}</div>
               <div class="cal-day-students" v-if="day.students.length">
                 <span
                   v-for="(s, si) in day.students.slice(0, 3)"
@@ -94,6 +95,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
+import { getHoliday, loadHolidays } from '../assets/js/holidays.js'
 import { getCoursesRange } from '../api/index.js'
 
 const router = useRouter()
@@ -107,6 +109,7 @@ const currentMonth = ref(dayjs().format('YYYY-MM'))
 const activeDate = ref(todayStr)
 const monthCourses = ref([])
 const hideStudentName = ref(false)
+const holidayVersion = ref(0)
 
 // 获取当前教师信息
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
@@ -115,6 +118,7 @@ const teacherName = teacherInfo.name || ''
 const monthLabel = computed(() => dayjs(currentMonth.value).format('YYYY 年 M 月'))
 
 const calendarDays = computed(() => {
+  void holidayVersion.value
   const m = dayjs(currentMonth.value)
   const startOfMonth = m.startOf('month')
   const startDow = startOfMonth.day()
@@ -156,7 +160,8 @@ function buildDay(dayNum, dateStr, isCurrentMonth) {
       teacherName: c.teacher_name || '',
       repeatType: c.repeat_type || 'none'
     }))
-  return { dayNum, dateStr, isCurrentMonth, students }
+  const holiday = getHoliday(dateStr)
+  return { dayNum, dateStr, isCurrentMonth, students, holiday }
 }
 
 function changeMonth(delta) {
@@ -226,14 +231,11 @@ watch(() => router.currentRoute.value.name, (name) => {
 
 onMounted(() => {
   loadMonthCourses()
+  loadHolidays(dayjs().year()).then(() => { holidayVersion.value++ })
 })
 
 </script>
 
 <style scoped>
 @import "../assets/css/calendar.css";
-
-.title-icon { height: 1.8em; width: auto; display: block; }
-.beian-footer { text-align: center; padding: 10px 20px 16px; font-size: 11px; }
-.beian-footer a { color: #bbb; text-decoration: none; }
 </style>

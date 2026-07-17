@@ -35,7 +35,7 @@ app.use(express.json());
 // 通过后在 req.teacher 上挂载教师信息
 function authMiddleware(req, res, next) {
   // 登录接口不需要验证（Express 挂载在 /api 下，req.path 不包含 /api）
-  if (req.path === '/login' || req.path === '/register' || req.path === '/refresh' || req.path === '/forgot-password' || req.path === '/reset-password') return next();
+  if (req.path === '/login' || req.path === '/register' || req.path === '/refresh' || req.path === '/forgot-password' || req.path === '/reset-password' || req.path === '/holidays' || req.path.startsWith('/holidays/')) return next();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -824,6 +824,22 @@ app.post('/api/reset-password', (req, res) => {
   } catch (err) {
     console.error('重置密码失败:', err);
     res.status(500).json({ error: '重置失败' });
+  }
+});
+
+
+// GET /api/holidays/:year — 获取节假日数据（代理外部API）
+app.get('/api/holidays/:year', async (req, res) => {
+  try {
+    const { year } = req.params;
+    const response = await fetch(`https://timor.tech/api/holiday/year/${year}`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('获取节假日失败:', err.message);
+    res.json({ code: -1, error: err.message });
   }
 });
 

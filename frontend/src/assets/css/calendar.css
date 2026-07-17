@@ -106,6 +106,24 @@
   color: #303133;
   line-height: 1.5;
 }
+.holiday-tag {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 1.6;
+  font-weight: 600;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+.holiday-tag--holiday {
+  color: #e74c3c;
+  background: #fde8e8;
+}
+.holiday-tag--workday {
+  color: #e67e22;
+  background: #fef5e7;
+}
 .cal-day-students {
   display: flex;
   flex-direction: column;
@@ -281,3 +299,6 @@
 }
 
 .title-icon { height: 1.8em; width: auto; display: block; }
+
+.beian-footer { text-align: center; padding: 10px 20px 16px; font-size: 11px; }
+.beian-footer a { color: #bbb; text-decoration: none; }

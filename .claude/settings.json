@@ -133,7 +133,16 @@
       "Bash(curl -s -o /dev/null -w \"月历\\(需要token\\): HTTP %{http_code}\\\\n\" http://localhost:3002/calendar)",
       "Bash(sed -i '' 's|../assets/images/logo.svg|./assets/images/logo.svg|g' /Users/admin/Desktop/project/calendar/frontend/src/App.vue)",
       "Bash(sed -i '' \"s|'./assets/css/global.css'|'./assets/css/global.css'|g\" /Users/admin/Desktop/project/calendar/frontend/src/App.vue)",
-      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3002/app/calendar)"
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3002/app/calendar)",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT id, name, username, email, source, status FROM teachers;\")",
+      "WebSearch",
+      "Bash(node -e \"console.log\\(typeof fetch\\)\")",
+      "Bash(curl -s \"http://localhost:3002/api/holidays/2026\" -o /dev/null -w \"HTTP %{http_code}, 大小: %{size_download}bytes\\\\n\")",
+      "Bash(curl -s \"http://localhost:3002/api/holidays/2026\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'code={d.get\\(\\\\\"code\\\\\"\\)}, holidays={len\\(d.get\\(\\\\\"holiday\\\\\",{}\\)\\)}天'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'status: {d.get\\(\\\\\"code\\\\\"\\)}, holidays: {len\\(d.get\\(\\\\\"holiday\\\\\",{}\\)\\)}天, year: {d.get\\(\\\\\"year\\\\\",\\\\\"?\\\\\"\\)}'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d\\)\")",
+      "Bash(curl -s \"http://localhost:5173/api/holidays/2026\")"
     ]
   }
 }

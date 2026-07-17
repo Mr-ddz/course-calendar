@@ -1,0 +1,16 @@
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 56px;
+  background: #fff; border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+.top-bar-title { font-size: 16px; font-weight: 600; color: #303133; }
+.top-bar-right { display: flex; align-items: center; gap: 10px; }
+.top-bar-user { font-size: 14px; font-weight: 500; color: #409eff; }
+.top-bar-role {
+  font-size: 11px; color: #fff; background: #409eff;
+  padding: 2px 8px; border-radius: 10px; font-weight: 500;
+}
+.main-content {
+  background: #f5f7fa; padding: 0;
+}
