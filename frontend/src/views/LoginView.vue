@@ -97,8 +97,4 @@ async function handleLogin() {
 
 <style scoped>
 @import "../assets/css/login.css";
-
-.title-icon { height: 1.8em; width: auto; display: block; }
-.register-link { text-align: center; margin-top: 16px; font-size: 13px; color: #909399; }
-.register-link a { color: #409eff; text-decoration: none; font-weight: 500; }
 </style>

@@ -31,12 +31,12 @@
               <div class="cal-day-number">{{ day.dayNum }}</div>
               <div class="cal-day-students" v-if="day.students.length">
                 <span
-                  v-for="(s, si) in day.students.slice(0, 4)"
+                  v-for="(s, si) in day.students.slice(0, 3)"
                   :key="si"
                   class="cal-student-tag"
                   :style="{ background: s.color + '30', color: s.color }"
                 ><span class="tag-name">{{ s.name }}</span><span v-if="s.teacherName" class="tag-teacher">{{ s.teacherName }}</span> <span class="tag-time">{{ s.time }}</span><span v-if="s.repeatType === 'weekly'" class="tag-repeat">🔄</span></span>
-                <span v-if="day.students.length > 4" class="cal-student-more">+{{ day.students.length - 4 }}</span>
+                <span v-if="day.students.length > 3" class="cal-student-more" @click.stop="goToDay(day.dateStr)">+{{ day.students.length - 3 }} 更多 →</span>
               </div>
             </template>
           </div>
@@ -227,7 +227,6 @@ watch(() => router.currentRoute.value.name, (name) => {
 onMounted(() => {
   loadMonthCourses()
 })
-
 
 </script>
 

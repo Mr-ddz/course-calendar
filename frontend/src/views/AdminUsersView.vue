@@ -167,13 +167,7 @@ onMounted(() => { loadTeachers() })
 </script>
 
 <style scoped>
-.beian-footer { text-align: center; padding: 16px 20px; font-size: 11px; }
-.beian-footer a { color: #bbb; text-decoration: none; }
 
-.admin-page {
-  max-width: 1080px; margin: 0 auto; min-height: 100vh;
-  background: #f5f7fa; display: flex; flex-direction: column;
-}
 .admin-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff; padding: 16px 20px 12px;

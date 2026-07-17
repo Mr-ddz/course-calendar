@@ -67,9 +67,4 @@ async function handleSubmit() {
 
 <style scoped>
 @import "../assets/css/login.css";
-.register-header { text-align: center; margin-bottom: 16px; }
-.register-header .title-icon { height: 60px; width: auto; display: block; margin: 0 auto 6px; }
-.register-header .login-title { display: block !important; margin-bottom: 0; }
-.register-login-link { text-align: center; margin-top: 16px; font-size: 13px; color: #909399; }
-.register-login-link a { color: #409eff; text-decoration: none; font-weight: 500; }
 </style>

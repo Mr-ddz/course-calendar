@@ -88,7 +88,4 @@ onMounted(() => {
 
 <style scoped>
 @import "../assets/css/login.css";
-.register-header { text-align: center; margin-bottom: 16px; }
-.register-header .title-icon { height: 60px; width: auto; display: block; margin: 0 auto 6px; }
-.register-header .login-title { display: block !important; margin-bottom: 0; }
 </style>

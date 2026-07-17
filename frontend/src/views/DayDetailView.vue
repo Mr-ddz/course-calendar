@@ -674,6 +674,4 @@ onMounted(() => {
 
 <style scoped>
 @import "../assets/css/detail.css";
-
-.title-icon { height: 1.8em; width: auto; display: block; }
 </style>
