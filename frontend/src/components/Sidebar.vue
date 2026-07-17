@@ -31,15 +31,25 @@
       <div class="sidebar-beian" v-show="!collapsed">
         <a href="https://beian.miit.gov.cn/" target="_blank">辽ICP备2026015173号-1</a>
       </div>
+      <div class="sidebar-version" v-show="!collapsed">
+        <span>v{{ version }}</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { logout as logoutApi } from '../api/index.js'
+import versionData from '../assets/version.json'
+
+const version = ref('1.0.0')
+
+onMounted(() => {
+  version.value = versionData.version || '1.0.0'
+})
 
 const props = defineProps({
   collapsed: Boolean,

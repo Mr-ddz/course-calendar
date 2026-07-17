@@ -75,7 +75,7 @@ const routes = [
     name: 'admin-users',
     component: AdminUsersView,
     meta: { requiresAuth: true }
-  }
+  },
 ]
 
 const router = createRouter({
