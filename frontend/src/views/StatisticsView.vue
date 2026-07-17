@@ -5,16 +5,9 @@
       <div class="stats-header-top">
         <h1 class="stats-title">📊 统计</h1>
         <div class="stats-user">
-          <span class="stats-user-name">{{ teacherName }}</span>
-          <el-button size="small" class="stats-logout-btn" @click="handleLogout">退出</el-button>
+          
         </div>
       </div>
-      <div class="cal-tabs" style="margin-bottom: 8px; display: flex; gap: 6px;">
-        <el-button size="small" @click="$router.push('/calendar')">📅 月历</el-button>
-        <el-button size="small" type="primary" @click="$router.push('/statistics')">📊 统计</el-button>
-        <el-button v-if="isAdmin" size="small" @click="$router.push('/admin/users')">👤 用户</el-button>
-      </div>
-
       <!-- 统计周期切换 -->
       <div class="stats-period">
         <el-radio-group v-model="period" size="small">
@@ -77,7 +70,7 @@
             <el-option label="未到课" :value="0" />
           </el-select>
         </el-form-item>
-        <el-form-item>
+        <el-form-item style="margin-top: 10px;">
           <el-button type="primary" @click="doSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
           <el-button @click="exportCSV">📥 导出CSV</el-button>
@@ -128,15 +121,12 @@
           :page-sizes="[10, 50, 100]"
           :total="searchResult.total"
           layout="total, sizes, prev, pager, next"
-          small
+          size="small"
           @size-change="onPageSizeChange"
           @current-change="onPageChange"
         />
       </div>
     </div>
-  <div style="text-align:center;padding:10px 20px 16px;font-size:11px;background:#f5f7fa;">
-    <a href="https://beian.miit.gov.cn/" target="_blank" style="color:#bbb;text-decoration:none;">辽ICP备2026015173号-1</a>
-  </div>
   </div>
 </template>
 
@@ -145,7 +135,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { searchCourses, getStatistics, logout as logoutApi } from '../api/index.js'
+import { searchCourses, getStatistics } from '../api/index.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -351,25 +341,11 @@ function calcDuration(start, end) {
   return m > 0 ? `${h}h${m}m` : `${h}h`
 }
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确认退出登录？', '退出', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'info'
-    })
-    try { await logoutApi() } catch { /* ignore */ }
-    localStorage.removeItem('token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('teacher')
-    router.push('/login')
-  } catch { /* cancel */ }
-}
-
 onMounted(() => {
   searchDateRange.value = getPeriodRange('month')
   doSearch()
 })
+
 </script>
 
 <style scoped>

@@ -3,15 +3,7 @@
     <header class="admin-header">
       <div class="admin-header-top">
         <h1 class="admin-title">👤 用户管理</h1>
-        <div class="admin-user">
-          <span class="admin-user-name">{{ teacherName }}</span>
-          <el-button size="small" @click="handleLogout">退出</el-button>
-        </div>
-      </div>
-      <div class="cal-tabs" style="margin-bottom: 10px; display: flex; gap: 6px;">
-        <el-button size="small" @click="$router.push('/calendar')">📅 月历</el-button>
-        <el-button size="small" @click="$router.push('/statistics')">📊 统计</el-button>
-        <el-button size="small" type="primary">👤 用户管理</el-button>
+        
       </div>
       <div class="admin-toolbar">
         <div class="admin-toolbar-left">
@@ -34,7 +26,7 @@
         </el-table-column>
         <el-table-column label="来源" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.source === 'admin' ? '' : 'warning'" size="small">
+            <el-tag :type="row.source === 'admin' ? 'info' : 'warning'" size="small">
               {{ row.source === 'admin' ? '管理员创建' : '邮箱注册' }}
             </el-tag>
           </template>
@@ -83,7 +75,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeacher, logout as logoutApi } from '../api/index.js'
+import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeacher } from '../api/index.js'
 
 const router = useRouter()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
@@ -107,7 +99,7 @@ async function loadTeachers() {
     const res = await adminGetTeachers()
     teachers.value = res.data.data || []
   } catch (err) {
-    if (err.response?.status === 403) router.push('/calendar')
+    if (err.response?.status === 403) router.push('/app/calendar')
     ElMessage.error('加载失败')
   } finally { loading.value = false }
 }
@@ -171,17 +163,6 @@ function resetAddForm() {
   addForm.value = { name: '', username: '', password: '' }
 }
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确认退出登录？', '退出', { type: 'info' })
-    try { await logoutApi() } catch { /* ignore */ }
-    localStorage.removeItem('token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('teacher')
-    router.push('/login')
-  } catch { /* cancel */ }
-}
-
 onMounted(() => { loadTeachers() })
 </script>
 
@@ -190,7 +171,7 @@ onMounted(() => { loadTeachers() })
 .beian-footer a { color: #bbb; text-decoration: none; }
 
 .admin-page {
-  max-width: 960px; margin: 0 auto; min-height: 100vh;
+  max-width: 1080px; margin: 0 auto; min-height: 100vh;
   background: #f5f7fa; display: flex; flex-direction: column;
 }
 .admin-header {

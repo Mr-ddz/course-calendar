@@ -85,7 +85,7 @@ async function handleLogin() {
     localStorage.setItem('teacher', JSON.stringify(teacher))
 
     ElMessage.success(`欢迎回来，${teacher.name}`)
-    router.push('/calendar')
+    router.push('/app/calendar')
   } catch (err) {
     const msg = err.response?.data?.error || '登录失败'
     ElMessage.error(msg)

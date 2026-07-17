@@ -93,7 +93,7 @@
   gap: 2px;
 }
 .cal-day {
-  min-height: 76px;
+  height: 76px;
   background: #fafafa;
   border-radius: 6px;
   padding: 4px 6px;
@@ -102,6 +102,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid #f0f0f0;
+  overflow: hidden;
 }
 .cal-day:hover {
   background: #ecf5ff;
@@ -130,6 +131,7 @@
   gap: 2px;
   margin-top: 3px;
   flex: 1;
+  overflow: hidden;
 }
 .cal-student-tag {
   font-size: 11px;

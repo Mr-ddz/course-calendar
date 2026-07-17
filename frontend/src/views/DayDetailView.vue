@@ -5,28 +5,7 @@
       <div class="detail-header-row">
         <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
         <h1 class="detail-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> {{ teacherName }}的课程表</h1>
-        <div class="detail-user">
-          <span class="detail-user-name">{{ teacherName }}</span>
-          <el-button size="small" class="detail-logout-btn" @click="handleLogout">退出</el-button>
-        </div>
-      </div>
-      <div class="cal-tabs" style="margin-bottom: 8px; display: flex; gap: 6px;">
-        <el-button
-          size="small"
-          :type="$route.name === 'calendar' ? 'primary' : 'default'"
-          @click="$router.push('/calendar')"
-        >📅 月历</el-button>
-        <el-button
-          size="small"
-          :type="$route.name === 'statistics' ? 'primary' : 'default'"
-          @click="$router.push('/statistics')"
-        >📊 统计</el-button>
-        <el-button
-          size="small"
-          v-if="isAdmin"
-          :type="$route.name === 'admin-users' ? 'primary' : 'default'"
-          @click="$router.push('/admin/users')"
-        >👤 用户</el-button>
+        
       </div>
       <!-- 日导航 -->
       <div class="detail-nav">
@@ -224,10 +203,7 @@
       </template>
     </el-dialog>
   </div>
-  <div class="beian-footer" style="text-align:center;padding:10px 20px 16px;font-size:11px;">
-    <a href="https://beian.miit.gov.cn/" target="_blank" style="color:#bbb;text-decoration:none;">辽ICP备2026015173号-1</a>
-  </div>
-</template>
+  </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
@@ -239,7 +215,6 @@ import {
   createCourse,
   updateCourse,
   deleteCourse as deleteCourseApi,
-  logout as logoutApi,
   getStudents,
   getStudentRecentFee
 } from '../api/index.js'
@@ -446,36 +421,19 @@ const disabledEndMinutes = computed(() => (hour) => {
 
 // 方法
 function goBack() {
-  router.push({ name: 'calendar' })
-}
-
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确认退出登录？', '退出', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'info'
-    })
-    try { await logoutApi() } catch { /* 忽略接口报错 */ }
-    localStorage.removeItem('token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('teacher')
-    router.push('/login')
-  } catch {
-    // 用户点了取消，什么都不做
-  }
+  router.push('/app/calendar')
 }
 
 function changeDay(delta) {
   dateStr.value = dayjs(dateStr.value).add(delta, 'day').format('YYYY-MM-DD')
-  router.replace({ params: { date: dateStr.value } })
+  router.replace('/app/day/' + dateStr.value)
   loadCourses()
   nextTick(() => scrollToSuitable())
 }
 
 function backToToday() {
   dateStr.value = todayStr
-  router.replace({ params: { date: todayStr } })
+  router.replace('/app/day/' + todayStr)
   loadCourses()
   nextTick(() => scrollToSuitable())
 }
@@ -712,17 +670,10 @@ onMounted(() => {
   loadCourses()
   nextTick(() => scrollToSuitable())
 })
-
 </script>
 
 <style scoped>
 @import "../assets/css/detail.css";
 
 .title-icon { height: 1.8em; width: auto; display: block; }
-</style>
-
-<!-- 全局样式：自动补全下拉建议 -->
-<style scoped>
-@import "../assets/css/detail.css";
-
 </style>

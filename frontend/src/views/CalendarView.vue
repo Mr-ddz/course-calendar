@@ -3,23 +3,7 @@
     <header class="cal-header">
       <div class="cal-header-top">
         <h1 class="cal-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> {{ teacherName }}的课程表</h1>
-        <div class="cal-user">
-          <span class="cal-user-name">{{ teacherName }}</span>
-          <el-button size="small" @click="handleLogout">退出</el-button>
         </div>
-      </div>
-      <div class="cal-tabs">
-        <el-button
-          :type="$route.name === 'calendar' ? 'primary' : 'default'"
-          size="small"
-          @click="$router.push('/calendar')"
-        >📅 月历</el-button>
-        <el-button
-          :type="$route.name === 'statistics' ? 'primary' : 'default'"
-          size="small"
-          @click="$router.push('/statistics')"
-        >📊 统计</el-button>
-      </div>
       <div class="cal-nav">
         <el-button @click="changeMonth(-1)">&lt; 上月</el-button>
         <span class="cal-month-title">{{ monthLabel }}</span>
@@ -102,9 +86,6 @@
         </table>
       </div>
     </div>
-  <div class="beian-footer">
-    <a href="https://beian.miit.gov.cn/" target="_blank">辽ICP备2026015173号-1</a>
-  </div>
   </div>
 </template>
 
@@ -113,7 +94,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { getCoursesRange, logout as logoutApi } from '../api/index.js'
+import { getCoursesRange } from '../api/index.js'
 
 const router = useRouter()
 
@@ -184,7 +165,7 @@ function changeMonth(delta) {
 
 function goToDay(dateStr) {
   activeDate.value = dateStr
-  router.push({ name: 'day-detail', params: { date: dateStr } })
+  router.push('/app/day/' + dateStr)
 }
 
 function backToToday() {
@@ -224,24 +205,6 @@ function getTimetableCourses(hour, weekday) {
   return timetableMap.value[`${weekday}-${hour}`] || []
 }
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确认退出登录？', '退出', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'info'
-    })
-    // 用户确认退出
-    try { await logoutApi() } catch { /* 忽略接口报错 */ }
-    localStorage.removeItem('token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('teacher')
-    router.push('/login')
-  } catch {
-    // 用户点了取消，什么都不做
-  }
-}
-
 async function loadMonthCourses() {
   const m = dayjs(currentMonth.value)
   const start = m.startOf('month').format('YYYY-MM-DD')
@@ -264,6 +227,8 @@ watch(() => router.currentRoute.value.name, (name) => {
 onMounted(() => {
   loadMonthCourses()
 })
+
+
 </script>
 
 <style scoped>

@@ -20,7 +20,7 @@ const routes = [
     name: 'login',
     component: LoginView,
     beforeEnter: (to, from, next) => {
-      if (localStorage.getItem('token')) next('/calendar')
+      if (localStorage.getItem('token')) next('/app/calendar')
       else next()
     }
   },
@@ -29,35 +29,16 @@ const routes = [
     name: 'register',
     component: RegisterView,
     beforeEnter: (to, from, next) => {
-      if (localStorage.getItem('token')) next('/calendar')
+      if (localStorage.getItem('token')) next('/app/calendar')
       else next()
     }
-  },
-  {
-    path: '/calendar',
-    name: 'calendar',
-    component: CalendarView,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/day/:date',
-    name: 'day-detail',
-    component: DayDetailView,
-    props: true,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/statistics',
-    name: 'statistics',
-    component: StatisticsView,
-    meta: { requiresAuth: true }
   },
   {
     path: '/forgot-password',
     name: 'forgot-password',
     component: ForgotPasswordView,
     beforeEnter: (to, from, next) => {
-      if (localStorage.getItem('token')) next('/calendar')
+      if (localStorage.getItem('token')) next('/app/calendar')
       else next()
     }
   },
@@ -66,12 +47,31 @@ const routes = [
     name: 'reset-password',
     component: ResetPasswordView,
     beforeEnter: (to, from, next) => {
-      if (localStorage.getItem('token')) next('/calendar')
+      if (localStorage.getItem('token')) next('/app/calendar')
       else next()
     }
   },
   {
-    path: '/admin/users',
+    path: '/app/calendar',
+    name: 'calendar',
+    component: CalendarView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/app/day/:date',
+    name: 'day-detail',
+    component: DayDetailView,
+    props: true,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/app/statistics',
+    name: 'statistics',
+    component: StatisticsView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/app/users',
     name: 'admin-users',
     component: AdminUsersView,
     meta: { requiresAuth: true }
