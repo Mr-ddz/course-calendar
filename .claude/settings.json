@@ -144,7 +144,17 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d\\)\")",
       "Bash(curl -s \"http://localhost:5173/api/holidays/2026\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'API正常: {len\\(d[\\\\\"data\\\\\"]\\)}门课'\\)\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/schedule.db \".tables\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \".tables\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT id, student_name, date, start_time, end_time, teacher_id FROM courses WHERE date >= '2026-07-01' AND date <= '2026-07-31' ORDER BY date, start_time;\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT student_name, date, start_time, end_time FROM courses WHERE date = '2026-07-19' ORDER BY start_time;\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT id, name, username, password FROM teachers WHERE id=1;\")",
+      "Bash(curl -s \"http://localhost:3002/\")",
+      "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT student_name, start_time, end_time FROM courses WHERE date='2026-07-19' AND teacher_id=2 ORDER BY start_time;\")",
+      "Bash(npx vue-tsc *)",
+      "Bash(node -e \"require\\('./database'\\)\")",
+      "Bash(git commit -m '清理无用代码 + 修复月历课程列表同一时段课程互相覆盖不显示的bug *)"
     ]
   }
 }

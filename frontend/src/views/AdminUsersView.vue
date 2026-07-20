@@ -79,7 +79,6 @@ import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeach
 
 const router = useRouter()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
-const teacherName = teacherInfo.name || ''
 
 const teachers = ref([])
 const loading = ref(false)

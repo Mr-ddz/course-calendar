@@ -70,8 +70,8 @@
           <el-table-column v-for="(d, idx) in weekDayHeaders" :key="d" :label="d" min-width="85" header-align="center">
             <template #default="{ row }">
               <div
-                v-for="course in (row.days[idx] || [])"
-                :key="course.id"
+                v-for="(course, ci) in (row.days[idx] || [])"
+                :key="course.id || `c-${idx}-${ci}`"
                 class="cell-course"
                 :style="{ background: course.color + '30', color: course.color }"
               >
@@ -89,8 +89,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { getHoliday, loadHolidays } from '../assets/js/holidays.js'
 import { getCoursesRange } from '../api/index.js'
@@ -176,29 +175,34 @@ function backToToday() {
   goToDay(todayStr)
 }
 
-// 周课程表数据：按当月数据聚合，跨小时课程合并行
+// 周课程表数据：按当月数据聚合
+// 课程会加入它覆盖的每个小时格子（不再使用跨行合并，避免隐藏同一时段的其他课程）
 const timetableMap = computed(() => {
   const m = dayjs(currentMonth.value)
   const monthStart = m.startOf('month').format('YYYY-MM-DD')
   const monthEnd = m.endOf('month').format('YYYY-MM-DD')
   const map = {}
-  const seen = new Set()
+  const seen = new Set() // 每周重复去重
   for (const c of monthCourses.value) {
-    // 只统计当月的数据
     if (c.date < monthStart || c.date > monthEnd) continue
     const d = dayjs(c.date)
     const dow = d.day() || 7 // 1=Mon..7=Sun
-    const startHour = parseInt(c.start_time.split(':')[0])
-    const [eh, em] = c.end_time.split(':').map(Number)
     const [sh, sm] = c.start_time.split(':').map(Number)
+    const [eh, em] = c.end_time.split(':').map(Number)
+    const startHour = sh
     const durationMins = eh * 60 + em - (sh * 60 + sm)
     const spanRows = Math.max(1, Math.ceil(durationMins / 60))
-    const key = `${dow}-${startHour}`
+    // 每周重复去重：同一天+同一时段+同学生只显示一次
     const dedupKey = `${dow}-${startHour}-${c.student_name}-${c.start_time}-${c.end_time}`
     if (seen.has(dedupKey)) continue
     seen.add(dedupKey)
-    if (!map[key]) map[key] = []
-    map[key].push({ ...c, _spanRows: spanRows })
+    // 将课程加入它覆盖的每个小时格子，确保同一格子的所有课程都能独立显示
+    for (let o = 0; o < spanRows; o++) {
+      const hour = startHour + o
+      const key = `${dow}-${hour}`
+      if (!map[key]) map[key] = []
+      map[key].push(c)
+    }
   }
   return map
 })
@@ -208,68 +212,20 @@ function getTimetableCourses(hour, weekday) {
   return timetableMap.value[`${weekday}-${hour}`] || []
 }
 
-// 计算被跨行课程覆盖的格子（基于去重后的 timetableMap，与聚合数据保持一致）
-const spannedCells = computed(() => {
-  const cells = new Set()
-  for (const [key, courses] of Object.entries(timetableMap.value)) {
-    const [dow, startHour] = key.split('-').map(Number)
-    for (const c of courses) {
-      const [eh, em] = c.end_time.split(':').map(Number)
-      const [sh, sm] = c.start_time.split(':').map(Number)
-      const durationMins = eh * 60 + em - (sh * 60 + sm)
-      const spanRows = Math.max(1, Math.ceil(durationMins / 60))
-      for (let offset = 1; offset < spanRows; offset++) {
-        cells.add(`${dow}-${startHour + offset}`)
-      }
-    }
-  }
-  return cells
-})
-
 // el-table 行数据
+// 每个小时格子独立显示，不再使用跨行合并覆盖逻辑
 const timetableRows = computed(() => {
   return timeSlots.map(hour => {
-    const row = { 
-      hour, 
-      timeLabel: String(hour).padStart(2, '0') + ':00~' + String(hour + 1).padStart(2, '0') + ':00',
-      days: [] 
-    }
+    const row = { hour, timeLabel: String(hour).padStart(2, '0') + ':00~' + String(hour+1).padStart(2, '0') + ':00', days: [] }
     for (let d = 1; d <= 7; d++) {
-      const key = `${d}-${hour}`
-      row.days.push(spannedCells.value.has(key) ? [] : getTimetableCourses(hour, d))
+      row.days.push(getTimetableCourses(hour, d))
     }
     return row
   })
 })
 
-function timetableSpanMethod({ row, column, rowIndex, columnIndex }) {
-  if (columnIndex === 0) return // 时间列不合并
-
-  const weekday = columnIndex  // 1=Mon..7=Sun
-  const hour = row.hour
-  
-  // 已被跨行覆盖的格子 → 隐藏
-  if (spannedCells.value.has(`${weekday}-${hour}`)) {
-    return { rowspan: 0, colspan: 0 }
-  }
-
-  // 检查当前格子是否有课程需要向下合并
-  const courses = getTimetableCourses(hour, weekday)
-  if (!courses || courses.length === 0) return
-
-  // 找最大跨度
-  let maxSpan = 1
-  for (const c of courses) {
-    const [eh, em] = c.end_time.split(':').map(Number)
-    const [sh, sm] = c.start_time.split(':').map(Number)
-    const durationMins = eh * 60 + em - (sh * 60 + sm)
-    const spanRows = Math.max(1, Math.ceil(durationMins / 60))
-    if (spanRows > maxSpan) maxSpan = spanRows
-  }
-  
-  if (maxSpan > 1) {
-    return { rowspan: maxSpan, colspan: 1 }
-  }
+function timetableSpanMethod() {
+  // 不再使用跨行合并，每个小时格子独立显示
 }
 
 function cellClassName({ row, column, columnIndex }) {
