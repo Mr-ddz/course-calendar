@@ -89,7 +89,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { getHoliday, loadHolidays } from '../assets/js/holidays.js'
 import { getCoursesRange } from '../api/index.js'

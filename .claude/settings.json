@@ -154,7 +154,8 @@
       "Bash(sqlite3 /Users/admin/Desktop/project/calendar/backend/data/schedule.db \"SELECT student_name, start_time, end_time FROM courses WHERE date='2026-07-19' AND teacher_id=2 ORDER BY start_time;\")",
       "Bash(npx vue-tsc *)",
       "Bash(node -e \"require\\('./database'\\)\")",
-      "Bash(git commit -m '清理无用代码 + 修复月历课程列表同一时段课程互相覆盖不显示的bug *)"
+      "Bash(git commit -m '清理无用代码 + 修复月历课程列表同一时段课程互相覆盖不显示的bug *)",
+      "Bash(git tag *)"
     ]
   }
 }
