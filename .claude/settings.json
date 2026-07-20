@@ -143,7 +143,8 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'status: {d.get\\(\\\\\"code\\\\\"\\)}, holidays: {len\\(d.get\\(\\\\\"holiday\\\\\",{}\\)\\)}天, year: {d.get\\(\\\\\"year\\\\\",\\\\\"?\\\\\"\\)}'\\)\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d\\)\")",
       "Bash(curl -s \"http://localhost:5173/api/holidays/2026\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'API正常: {len\\(d[\\\\\"data\\\\\"]\\)}门课'\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'API正常: {len\\(d[\\\\\"data\\\\\"]\\)}门课'\\)\")",
+      "Bash(git checkout *)"
     ]
   }
 }

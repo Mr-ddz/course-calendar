@@ -102,6 +102,11 @@ api.interceptors.response.use(
       }
     }
 
+    // 其他 401 错误（token 无效/未登录等）→ 跳转登录页
+    localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('teacher')
+    window.location.href = '/login'
     return Promise.reject(error)
   }
 )
