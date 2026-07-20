@@ -118,13 +118,6 @@ export function login(username, password) {
 export function logout() {
   return api.post('/logout')
 }
-export function getMe() {
-  return api.get('/me')
-}
-export function getTeachers() {
-  return api.get('/teachers')
-}
-
 export function forgotPassword(email) {
   return api.post('/forgot-password', { email })
 }
@@ -150,9 +143,6 @@ export function adminDeleteTeacher(id) {
 // ===== 学生 =====
 export function getStudents(params) {
   return api.get('/students', { params })
-}
-export function createStudent(data) {
-  return api.post('/students', data)
 }
 export function getStudentRecentFee(id) {
   return api.get('/students/recent-fee', { params: { id } })
@@ -180,8 +170,4 @@ export function searchCourses(params) {
 export function getStatistics(params) {
   return api.get('/courses/statistics', { params })
 }
-export function exportCsv() {
-  return api.get('/courses/export-csv')
-}
-
 export default api

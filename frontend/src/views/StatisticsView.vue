@@ -132,7 +132,6 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { searchCourses, getStatistics } from '../api/index.js'
@@ -143,8 +142,6 @@ const gradeOptions = [
   { id: 7, name: '初一' }, { id: 8, name: '初二' }, { id: 9, name: '初三' },
   { id: 10, name: '高一' }, { id: 11, name: '高二' }, { id: 12, name: '高三' }
 ]
-
-const router = useRouter()
 
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
