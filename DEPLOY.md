@@ -89,14 +89,14 @@ git add -A
 git commit -m "init"
 
 # 去 github.com 创建仓库 → 然后：
-git remote add origin https://github.com/你的用户名/course-schedule.git
+git remote add origin https://github.com/你的用户名/course-calendar.git
 git branch -M main
 git push -u origin main
 
 # 第二步：在服务器上拉取
 ssh root@你的服务器IP
-git clone https://github.com/你的用户名/course-schedule.git
-cd course-schedule
+git clone https://github.com/你的用户名/course-calendar.git
+cd course-calendar
 ```
 
 ### 方式 B：直接上传
@@ -110,15 +110,15 @@ cd /Users/admin/Desktop/project/calendar
 tar --exclude='backend/node_modules' \
     --exclude='frontend/node_modules' \
     --exclude='*.db' \
-    -czf course-schedule.tar.gz .
+    -czf course-calendar.tar.gz .
 
 # 上传到服务器
-scp course-schedule.tar.gz root@你的服务器IP:/root/
+scp course-calendar.tar.gz root@你的服务器IP:/root/
 
 # 在服务器上解压
 ssh root@你的服务器IP
-tar -xzf course-schedule.tar.gz
-cd course-schedule
+tar -xzf course-calendar.tar.gz
+cd course-calendar
 ```
 
 ---
@@ -126,7 +126,7 @@ cd course-schedule
 ## 五、构建 & 启动（在服务器上操作）
 
 ```bash
-cd /root/course-schedule   # 进入项目目录
+cd /root/course-calendar   # 进入项目目录
 
 # 1. 构建前端
 cd frontend
@@ -151,7 +151,7 @@ cd ..
 
 ```bash
 # 启动
-pm2 start backend/server.js --name course-schedule
+pm2 start backend/server.js --name course-calendar
 
 # 设置开机自启
 pm2 save
@@ -162,9 +162,9 @@ pm2 startup
 
 ```bash
 pm2 list                  # 查看运行状态
-pm2 logs course-schedule  # 查看实时日志
-pm2 restart course-schedule  # 重启
-pm2 stop course-schedule     # 停止
+pm2 logs course-calendar  # 查看实时日志
+pm2 restart course-calendar  # 重启
+pm2 stop course-calendar     # 停止
 ```
 
 **现在访问 `http://你的服务器IP:3002` 就能用了！**
@@ -193,7 +193,7 @@ pm2 stop course-schedule     # 停止
 apt-get install -y nginx
 
 # 创建配置文件
-cat > /etc/nginx/sites-available/course-schedule << 'EOF'
+cat > /etc/nginx/sites-available/course-calendar << 'EOF'
 server {
     listen 80;
     server_name 你的域名.com;   # 改成你的域名
@@ -209,7 +209,7 @@ server {
 EOF
 
 # 启用配置
-ln -sf /etc/nginx/sites-available/course-schedule /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/course-calendar /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
 # 测试配置
@@ -242,12 +242,12 @@ SQLite 数据库就是一个文件，备份它就行：
 
 ```bash
 # 手动备份
-cp /root/course-schedule/backend/schedule.db /root/backup/schedule-$(date +%Y%m%d).db
+cp /root/course-calendar/backend/schedule.db /root/backup/schedule-$(date +%Y%m%d).db
 
 # 设置定时任务（每天凌晨 3 点自动备份）
 crontab -e
 # 添加这一行：
-0 3 * * * cp /root/course-schedule/backend/schedule.db /root/backup/schedule-$(date +\%Y\%m\%d).db
+0 3 * * * cp /root/course-calendar/backend/schedule.db /root/backup/schedule-$(date +\%Y\%m\%d).db
 ```
 
 恢复数据只需把备份的 `.db` 文件复制回 `backend/` 目录，重启即可。
@@ -258,7 +258,7 @@ crontab -e
 
 ```bash
 # 1. 修改默认管理员密码
-cd /root/course-schedule/backend
+cd /root/course-calendar/backend
 node seed.js reset-password "admin" "你的复杂密码"
 
 # 2. 配置服务器防火墙（仅开放必要端口）
@@ -285,18 +285,18 @@ git commit -m "更新内容"
 git push
 
 # 在服务器上
-cd /root/course-schedule
+cd /root/course-calendar
 git pull
 cd frontend && npm run build && cd ..
-pm2 restart course-schedule
+pm2 restart course-calendar
 
 # 方式 B：手动上传
 # 在你电脑上重新 tar + scp
 # 在服务器上重新解压覆盖
 # 记得先备份数据库！
-cp /root/course-schedule/backend/schedule.db /tmp/
+cp /root/course-calendar/backend/schedule.db /tmp/
 # 解压覆盖后，把数据库放回去
-cp /tmp/schedule.db /root/course-schedule/backend/
+cp /tmp/schedule.db /root/course-calendar/backend/
 ```
 
 ---
@@ -326,8 +326,8 @@ Railway 会自动分配 `*.railway.app` 的域名，不需要买服务器。
 | 构建前端 | `cd frontend && npm run build` |
 | 本地启动 | `cd backend && node server.js` |
 | 查看进程 | `pm2 list` |
-| 查看日志 | `pm2 logs course-schedule` |
-| 重启应用 | `pm2 restart course-schedule` |
+| 查看日志 | `pm2 logs course-calendar` |
+| 重启应用 | `pm2 restart course-calendar` |
 | 添加教师 | `cd backend && node seed.js add "名字" "用户名" "密码"` |
 | 重置密码 | `cd backend && node seed.js reset-password "用户名" "新密码"` |
 | 查看教师 | `cd backend && node seed.js list` |
