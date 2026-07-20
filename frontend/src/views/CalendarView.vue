@@ -208,24 +208,19 @@ function getTimetableCourses(hour, weekday) {
   return timetableMap.value[`${weekday}-${hour}`] || []
 }
 
-// 计算被跨行课程覆盖的格子（用于 span-method 返回 0）
+// 计算被跨行课程覆盖的格子（基于去重后的 timetableMap，与聚合数据保持一致）
 const spannedCells = computed(() => {
   const cells = new Set()
-  const m = dayjs(currentMonth.value)
-  const monthStart = m.startOf('month').format('YYYY-MM-DD')
-  const monthEnd = m.endOf('month').format('YYYY-MM-DD')
-
-  for (const c of monthCourses.value) {
-    if (c.date < monthStart || c.date > monthEnd) continue
-    const d = dayjs(c.date)
-    const dow = d.day() || 7
-    const startHour = parseInt(c.start_time.split(':')[0])
-    const [eh, em] = c.end_time.split(':').map(Number)
-    const [sh, sm] = c.start_time.split(':').map(Number)
-    const durationMins = eh * 60 + em - (sh * 60 + sm)
-    const spanRows = Math.max(1, Math.ceil(durationMins / 60))
-    for (let offset = 1; offset < spanRows; offset++) {
-      cells.add(`${dow}-${startHour + offset}`)
+  for (const [key, courses] of Object.entries(timetableMap.value)) {
+    const [dow, startHour] = key.split('-').map(Number)
+    for (const c of courses) {
+      const [eh, em] = c.end_time.split(':').map(Number)
+      const [sh, sm] = c.start_time.split(':').map(Number)
+      const durationMins = eh * 60 + em - (sh * 60 + sm)
+      const spanRows = Math.max(1, Math.ceil(durationMins / 60))
+      for (let offset = 1; offset < spanRows; offset++) {
+        cells.add(`${dow}-${startHour + offset}`)
+      }
     }
   }
   return cells
