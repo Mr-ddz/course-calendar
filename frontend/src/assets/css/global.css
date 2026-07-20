@@ -4,3 +4,8 @@ body {
   background: #f0f2f5;
   color: #333;
 }
+
+/* 全局：el-table 课程格子背景色（cell-class-name 添加的 course-cell 无法被 scoped CSS 匹配） */
+.el-table .course-cell {
+  background-color: #fff0f3 !important;
+}
