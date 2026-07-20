@@ -208,54 +208,48 @@
   border-radius: 8px;
   background: #fff;
 }
-.timetable {
+/* el-table 样式 */
+.timetable-scroll .el-table {
   width: 100%;
-  border-collapse: collapse;
   min-width: 700px;
   font-size: 12px;
 }
-.timetable thead th {
+.timetable-scroll .el-table th.el-table__cell {
   background: #f5f7fa;
   padding: 8px 4px;
-  border-bottom: 2px solid #e8eaf0;
+  border-bottom: 2px solid #e8eaf0 !important;
   text-align: center;
   font-weight: 600;
   color: #606266;
-  position: sticky;
-  top: 0;
-  z-index: 2;
 }
-.timetable .time-col {
-  width: 60px;
-  min-width: 60px;
+.timetable-scroll .el-table th.el-table__cell:after,
+.timetable-scroll .el-table th.el-table__cell:before {
+  display: none !important;
 }
-.timetable .day-col {
-  min-width: 85px;
-}
-.timetable .time-cell {
-  text-align: center;
-  padding: 6px 4px;
-  color: #909399;
-  font-size: 11px;
-  font-weight: 500;
-  border-right: 1px solid #f0f0f0;
-  background: #fafafa;
-}
-.timetable td {
+.timetable-scroll .el-table td.el-table__cell {
   border-bottom: 1px solid #f0f0f0;
   border-right: 1px solid #f0f0f0;
   vertical-align: top;
   padding: 3px 4px;
 }
-.timetable td:last-child {
+.timetable-scroll .el-table td.el-table__cell:last-child {
   border-right: none;
 }
-.timetable tbody tr:last-child td {
+.timetable-scroll .el-table tr:last-child td.el-table__cell {
   border-bottom: none;
 }
-.course-cell {
+.timetable-scroll .el-table .time-cell {
+  text-align: center;
+  padding: 6px 4px;
+  color: #909399;
+  font-size: 11px;
+  font-weight: 500;
+  background: #fafafa;
+}
+.timetable-scroll .el-table .course-cell {
   background: #fff0f3;
 }
+
 .cell-course--span {
   position: relative;
   z-index: 1;

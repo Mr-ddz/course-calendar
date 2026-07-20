@@ -56,35 +56,31 @@
         </div>
       </div>
       <div class="timetable-scroll">
-        <table class="timetable">
-          <thead>
-            <tr>
-              <th class="time-col"></th>
-              <th v-for="d in weekDayHeaders" :key="d" class="day-col">{{ d }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="hour in timeSlots" :key="hour">
-              <td class="time-cell">{{ String(hour).padStart(2, '0') }}:00~{{ String(hour+1).padStart(2, '0') }}:00</td>
-              <td
-                v-for="d in 7"
-                :key="d"
-                class="course-cell"
+        <el-table
+          :data="timetableRows"
+          :span-method="timetableSpanMethod"
+          border
+          :show-header="true"
+          :cell-class-name="cellClassName"
+          style="width:100%"
+          size="small"
+        >
+          <el-table-column label="" width="100" prop="timeLabel" />
+          <el-table-column v-for="(d, idx) in weekDayHeaders" :key="d" :label="d" min-width="85">
+            <template #default="{ row }">
+              <div
+                v-for="course in (row.days[idx] || [])"
+                :key="course.id"
+                class="cell-course"
+                :class="{ 'cell-course--span': course._spanRows > 1 }"
+                :style="{ borderLeftColor: course.color, '--span-rows': course._spanRows }"
               >
-                <div
-                  v-for="(course, ci) in getTimetableCourses(hour, d)"
-                  :key="ci"
-                  class="cell-course"
-                  :class="{ 'cell-course--span': course._spanRows > 1 }"
-                  :style="{ borderLeftColor: course.color, '--span-rows': course._spanRows }"
-                >
-                  <span :class="['cell-name', { 'cell-name--hidden': hideStudentName }]">{{ course.student_name }}</span>
-                  <span class="cell-time">{{ course.start_time }}-{{ course.end_time }}</span>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <span :class="['cell-name', { 'cell-name--hidden': hideStudentName }]">{{ course.student_name }}</span>
+                <span class="cell-time">{{ course.start_time }}-{{ course.end_time }}</span>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
     </div>
   </div>
@@ -209,6 +205,80 @@ const timetableMap = computed(() => {
 // 获取 timetable 某小时某周的课程
 function getTimetableCourses(hour, weekday) {
   return timetableMap.value[`${weekday}-${hour}`] || []
+}
+
+// 计算被跨行课程覆盖的格子（用于 span-method 返回 0）
+const spannedCells = computed(() => {
+  const cells = new Set()
+  const m = dayjs(currentMonth.value)
+  const monthStart = m.startOf('month').format('YYYY-MM-DD')
+  const monthEnd = m.endOf('month').format('YYYY-MM-DD')
+
+  for (const c of monthCourses.value) {
+    if (c.date < monthStart || c.date > monthEnd) continue
+    const d = dayjs(c.date)
+    const dow = d.day() || 7
+    const startHour = parseInt(c.start_time.split(':')[0])
+    const [eh, em] = c.end_time.split(':').map(Number)
+    const [sh, sm] = c.start_time.split(':').map(Number)
+    const durationMins = eh * 60 + em - (sh * 60 + sm)
+    const spanRows = Math.max(1, Math.ceil(durationMins / 60))
+    for (let offset = 1; offset < spanRows; offset++) {
+      cells.add(`${dow}-${startHour + offset}`)
+    }
+  }
+  return cells
+})
+
+// el-table 行数据
+const timetableRows = computed(() => {
+  return timeSlots.map(hour => {
+    const row = { 
+      hour, 
+      timeLabel: String(hour).padStart(2, '0') + ':00~' + String(hour + 1).padStart(2, '0') + ':00',
+      days: [] 
+    }
+    for (let d = 1; d <= 7; d++) {
+      const key = `${d}-${hour}`
+      row.days.push(spannedCells.value.has(key) ? [] : getTimetableCourses(hour, d))
+    }
+    return row
+  })
+})
+
+function timetableSpanMethod({ row, column, rowIndex, columnIndex }) {
+  if (columnIndex === 0) return // 时间列不合并
+
+  const weekday = columnIndex  // 1=Mon..7=Sun
+  const hour = row.hour
+  
+  // 已被跨行覆盖的格子 → 隐藏
+  if (spannedCells.value.has(`${weekday}-${hour}`)) {
+    return { rowspan: 0, colspan: 0 }
+  }
+
+  // 检查当前格子是否有课程需要向下合并
+  const courses = getTimetableCourses(hour, weekday)
+  if (!courses || courses.length === 0) return
+
+  // 找最大跨度
+  let maxSpan = 1
+  for (const c of courses) {
+    const [eh, em] = c.end_time.split(':').map(Number)
+    const [sh, sm] = c.start_time.split(':').map(Number)
+    const durationMins = eh * 60 + em - (sh * 60 + sm)
+    const spanRows = Math.max(1, Math.ceil(durationMins / 60))
+    if (spanRows > maxSpan) maxSpan = spanRows
+  }
+  
+  if (maxSpan > 1) {
+    return { rowspan: maxSpan, colspan: 1 }
+  }
+}
+
+function cellClassName({ row, column, columnIndex }) {
+  if (columnIndex === 0) return 'time-cell'
+  return 'course-cell'
 }
 
 async function loadMonthCourses() {
