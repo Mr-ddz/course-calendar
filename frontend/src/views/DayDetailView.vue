@@ -177,7 +177,11 @@
             v-model="courseForm.attended"
             active-text="已到课"
             inactive-text="未到课"
+            :disabled="isFutureCourse"
           />
+          <el-tooltip v-if="isFutureCourse" content="只能修改当天及之前的课程签到" placement="top">
+            <span style="margin-left:4px;cursor:help;color:#909399">ℹ️</span>
+          </el-tooltip>
         </el-form-item>
         <el-form-item label="颜色" label-for="course_color">
           <el-color-picker id="course_color" v-model="courseForm.color" />
@@ -316,6 +320,11 @@ const dayTitle = computed(() => {
   const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
   const d = dayjs(dateStr.value)
   return `${d.format('M 月 D 日')} ${days[d.day()]}`
+})
+
+// 当前编辑的课程是否属于未来（禁止修改签到）
+const isFutureCourse = computed(() => {
+  return courseForm.date && dayjs(courseForm.date).isAfter(dayjs(), 'day')
 })
 
 const totalDuration = computed(() => {

@@ -1,0 +1,155 @@
+.students-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #f5f7fa;
+  display: flex;
+  flex-direction: column;
+}
+
+.students-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 16px 20px 8px;
+}
+
+.students-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.students-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.students-toolbar {
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+}
+
+.students-toolbar .el-form-item {
+  margin-bottom: 0;
+}
+
+.students-toolbar .el-input,
+.students-toolbar .el-button {
+  --el-input-bg-color: rgba(255,255,255,0.9);
+}
+
+.students-toolbar .el-button {
+  --el-button-bg-color: rgba(255,255,255,0.2);
+  --el-button-border-color: rgba(255,255,255,0.3);
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: rgba(255,255,255,0.3);
+}
+
+.students-toolbar .el-button--primary {
+  --el-button-bg-color: #fff;
+  --el-button-text-color: #667eea;
+  --el-button-border-color: #fff;
+}
+
+.students-count {
+  font-size: 13px;
+  opacity: 0.85;
+  padding-bottom: 4px;
+}
+
+.students-table-wrapper {
+  background: #fff;
+  margin: 0;
+  padding: 16px 20px;
+  flex: 1;
+}
+
+.balance-ok {
+  font-weight: 600;
+  color: #67c23a;
+}
+
+.balance-empty {
+  font-weight: 600;
+  color: #e74c3c;
+}
+
+.balance-na {
+  color: #ccc;
+}
+
+.payment-mode-hint {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* 充值弹窗 */
+.recharge-info {
+  text-align: center;
+  padding: 8px 0 16px;
+}
+
+.recharge-student {
+  font-size: 18px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.recharge-balance {
+  font-size: 14px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+/* 充值结果 */
+.recharge-result {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.recharge-result-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.recharge-result-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #303133;
+  margin-bottom: 12px;
+}
+
+.recharge-result-detail {
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.8;
+}
+
+/* 流水 */
+.tx-balance {
+  font-size: 15px;
+  color: #303133;
+  padding: 8px 0 12px;
+}
+
+.tx-positive {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.tx-negative {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .students-header { padding: 12px 12px 8px; }
+  .students-toolbar .el-form-item { margin-bottom: 4px; }
+  .students-table-wrapper { padding: 12px; }
+}

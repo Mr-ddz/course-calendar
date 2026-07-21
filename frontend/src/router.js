@@ -8,6 +8,7 @@ import RegisterView from './views/RegisterView.vue'
 import AdminUsersView from './views/AdminUsersView.vue'
 import ForgotPasswordView from './views/ForgotPasswordView.vue'
 import ResetPasswordView from './views/ResetPasswordView.vue'
+import StudentsView from './views/StudentsView.vue'
 
 const routes = [
   {
@@ -68,6 +69,12 @@ const routes = [
     path: '/app/statistics',
     name: 'statistics',
     component: StatisticsView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/app/students',
+    name: 'students',
+    component: StudentsView,
     meta: { requiresAuth: true }
   },
   {
