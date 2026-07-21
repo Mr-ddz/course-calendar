@@ -232,7 +232,8 @@ if (!transactionsExist) {
 
 // ========== 6. 一次性迁移：从课程记录同步 hourly_fee 到学生表 ==========
 // 新加 hourly_fee 字段后，把学生最近一次课程的价格抄过来，避免线上数据全为 0
-if (studentCols.includes('hourly_fee')) {
+const hasFeeCol = db.prepare(`SELECT COUNT(*) as cnt FROM pragma_table_info('students') WHERE name='hourly_fee'`).get().cnt > 0;
+if (hasFeeCol) {
   const zeroCount = db.prepare(`SELECT COUNT(*) as cnt FROM students WHERE hourly_fee = 0`).get().cnt;
   if (zeroCount > 0) {
     const rows = db.prepare(`
