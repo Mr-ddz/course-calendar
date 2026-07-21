@@ -196,4 +196,38 @@ if (!studentsExist) {
   }
 }
 
+// ========== 4. 学生表新字段迁移（预交费支持） ==========
+const studentCols = db.prepare(`SELECT name FROM pragma_table_info('students')`).all().map(r => r.name);
+const studentNewFields = {
+  hourly_fee: "REAL DEFAULT 0",
+  payment_mode: "TEXT DEFAULT 'settle'",
+  prepaid_balance: "REAL DEFAULT 0"
+};
+for (const [name, def] of Object.entries(studentNewFields)) {
+  if (!studentCols.includes(name)) {
+    db.exec(`ALTER TABLE students ADD COLUMN ${name} ${def}`);
+  }
+}
+
+// ========== 5. 预交费流水表 ==========
+const transactionsExist = db.prepare(
+  `SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='prepaid_transactions'`
+  ).get()?.cnt > 0;
+
+if (!transactionsExist) {
+  db.exec(`
+    CREATE TABLE prepaid_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      balance_after REAL NOT NULL,
+      type TEXT NOT NULL,
+      course_id INTEGER DEFAULT NULL,
+      note TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_transactions_student ON prepaid_transactions(student_id)`);
+}
+
 module.exports = db;

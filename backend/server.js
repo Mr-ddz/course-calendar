@@ -211,22 +211,26 @@ app.get('/api/teachers', (req, res) => {
 
 // ========== 学生管理 ==========
 
-// 获取学生列表（支持搜索）
+// 获取学生列表（支持搜索，含预交费待补交计数）
 app.get('/api/students', (req, res) => {
   try {
     const { name } = req.query;
     let students;
+    // 用子查询附带待补交计数
+    const sql = `SELECT s.*,
+      (SELECT COUNT(*) FROM prepaid_transactions pt WHERE pt.student_id = s.id AND pt.type = 'deduct_failed') as _failed_count
+      FROM students s`;
     if (isAdmin(req.teacher)) {
       if (name) {
-        students = db.prepare(`SELECT * FROM students WHERE name LIKE ? ORDER BY name LIMIT 50`).all(`%${name}%`);
+        students = db.prepare(`${sql} WHERE s.name LIKE ? ORDER BY s.name LIMIT 50`).all(`%${name}%`);
       } else {
-        students = db.prepare(`SELECT * FROM students ORDER BY name`).all();
+        students = db.prepare(`${sql} ORDER BY s.name`).all();
       }
     } else {
       if (name) {
-        students = db.prepare(`SELECT * FROM students WHERE teacher_id = ? AND name LIKE ? ORDER BY name LIMIT 50`).all(req.teacher.id, `%${name}%`);
+        students = db.prepare(`${sql} WHERE s.teacher_id = ? AND s.name LIKE ? ORDER BY s.name LIMIT 50`).all(req.teacher.id, `%${name}%`);
       } else {
-        students = db.prepare(`SELECT * FROM students WHERE teacher_id = ? ORDER BY name`).all(req.teacher.id);
+        students = db.prepare(`${sql} WHERE s.teacher_id = ? ORDER BY s.name`).all(req.teacher.id);
       }
     }
     res.json({ data: students });
@@ -239,12 +243,12 @@ app.get('/api/students', (req, res) => {
 // 创建学生
 app.post('/api/students', (req, res) => {
   try {
-    const { name, grade } = req.body;
+    const { name, grade, hourly_fee, payment_mode } = req.body;
     if (!name) return res.status(400).json({ error: '请输入学生姓名' });
 
     const result = db.prepare(
-      `INSERT INTO students (name, grade, teacher_id) VALUES (?, ?, ?)`
-    ).run(name, grade || '', req.teacher.id);
+      `INSERT INTO students (name, grade, hourly_fee, payment_mode, teacher_id) VALUES (?, ?, ?, ?, ?)`
+    ).run(name, grade || '', parseFloat(hourly_fee) || 0, payment_mode || 'settle', req.teacher.id);
 
     const student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(result.lastInsertRowid);
     res.status(201).json({ data: student });
@@ -254,11 +258,148 @@ app.post('/api/students', (req, res) => {
   }
 });
 
-// 获取学生最近一次课时费
+// 编辑学生
+app.put('/api/students/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    let existing;
+    if (isAdmin(req.teacher)) {
+      existing = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    } else {
+      existing = db.prepare(`SELECT * FROM students WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    }
+    if (!existing) return res.status(404).json({ error: '学生不存在或无权操作' });
+
+    const { name, grade, hourly_fee, payment_mode } = req.body;
+    const finalName = name || existing.name;
+    const finalGrade = grade !== undefined ? grade : existing.grade;
+    const finalHourlyFee = hourly_fee !== undefined ? parseFloat(hourly_fee) : existing.hourly_fee;
+    const finalPaymentMode = payment_mode || existing.payment_mode;
+
+    db.prepare(
+      `UPDATE students SET name = ?, grade = ?, hourly_fee = ?, payment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run(finalName, finalGrade, finalHourlyFee, finalPaymentMode, id);
+
+    const updated = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    res.json({ data: updated });
+  } catch (err) {
+    console.error('编辑学生失败:', err);
+    res.status(500).json({ error: '编辑学生失败' });
+  }
+});
+
+// 学生充值（含自动补扣）
+app.post('/api/students/:id/recharge', (req, res) => {
+  try {
+    const { id } = req.params;
+    let student;
+    if (isAdmin(req.teacher)) {
+      student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    } else {
+      student = db.prepare(`SELECT * FROM students WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    }
+    if (!student) return res.status(404).json({ error: '学生不存在或无权操作' });
+
+    const { amount, note } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ error: '请输入有效的充值金额' });
+
+    const newBalance = (student.prepaid_balance || 0) + parseFloat(amount);
+
+    // 写入充值流水
+    db.prepare(
+      `INSERT INTO prepaid_transactions (student_id, amount, balance_after, type, note) VALUES (?, ?, ?, 'recharge', ?)`
+    ).run(id, parseFloat(amount), newBalance, note || `充值 ¥${amount}`);
+
+    // 更新余额
+    db.prepare(`UPDATE students SET prepaid_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(newBalance, id);
+
+    // 自动补扣：查出所有 deduct_failed，按日期 ASC 逐条尝试
+    const failedList = db.prepare(
+      `SELECT pt.*, c.hourly_fee, c.start_time, c.end_time FROM prepaid_transactions pt
+       LEFT JOIN courses c ON pt.course_id = c.id
+       WHERE pt.student_id = ? AND pt.type = 'deduct_failed' ORDER BY pt.created_at ASC`
+    ).all(id);
+
+    let autoDeducted = 0;
+    let currentBalance = newBalance;
+    for (const f of failedList) {
+      if (currentBalance <= 0) break;
+      // 从课程的 hourly_fee 和时长重新计算应扣金额
+      if (f.hourly_fee && f.start_time && f.end_time) {
+        const [sh, sm] = f.start_time.split(':').map(Number);
+        const [eh, em] = f.end_time.split(':').map(Number);
+        const durationHrs = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+        const fee = parseFloat(f.hourly_fee) * durationHrs;
+        if (currentBalance >= fee) {
+          currentBalance -= fee;
+          // 将 deduct_failed 改为 deduct
+          db.prepare(
+            `UPDATE prepaid_transactions SET type = 'deduct', balance_after = ?, note = ? WHERE id = ?`
+          ).run(currentBalance, `自动补扣 ¥${fee.toFixed(0)}（课程 #${f.course_id}）`, f.id);
+          autoDeducted++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // 如果余额有变化（自动补扣后），更新最终余额
+    if (currentBalance !== newBalance) {
+      db.prepare(`UPDATE students SET prepaid_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(currentBalance, id);
+    }
+
+    // 查剩余待补交笔数
+    const remainingFailed = db.prepare(
+      `SELECT COUNT(*) as cnt FROM prepaid_transactions WHERE student_id = ? AND type = 'deduct_failed'`
+    ).get(id);
+
+    res.json({
+      data: {
+        balance: currentBalance,
+        auto_deducted: autoDeducted,
+        remaining_failed: remainingFailed.cnt
+      }
+    });
+  } catch (err) {
+    console.error('充值失败:', err);
+    res.status(500).json({ error: '充值失败' });
+  }
+});
+
+// 查学生预交流水
+app.get('/api/students/:id/transactions', (req, res) => {
+  try {
+    const { id } = req.params;
+    let student;
+    if (isAdmin(req.teacher)) {
+      student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    } else {
+      student = db.prepare(`SELECT * FROM students WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    }
+    if (!student) return res.status(404).json({ error: '学生不存在或无权操作' });
+
+    const transactions = db.prepare(
+      `SELECT * FROM prepaid_transactions WHERE student_id = ? ORDER BY created_at DESC LIMIT 100`
+    ).all(id);
+
+    res.json({ data: { balance: student.prepaid_balance || 0, transactions } });
+  } catch (err) {
+    console.error('查流水失败:', err);
+    res.status(500).json({ error: '查流水失败' });
+  }
+});
+
+// 获取学生最近一次课时费（优先读取学生本身的 hourly_fee，其次从最近课程取）
 app.get('/api/students/recent-fee', (req, res) => {
   try {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: '请提供学生 ID' });
+
+    const student = db.prepare(`SELECT hourly_fee, color FROM students WHERE id = ?`).get(id);
+    if (student && student.hourly_fee > 0) {
+      return res.json({ data: { hourly_fee: student.hourly_fee, color: student.color || '#409EFF' } });
+    }
+
     const course = db.prepare(
       `SELECT hourly_fee, color FROM courses WHERE student_id = ? ORDER BY date DESC, id DESC LIMIT 1`
     ).get(id);
@@ -449,6 +590,60 @@ app.put('/api/courses/:id', (req, res) => {
       repeat_type !== undefined ? repeat_type : existing.repeat_type,
       id
     );
+
+    // ===== 预交费处理：签到/取消签到触发扣费或退款 =====
+    if (attended !== undefined) {
+      const wasAttended = existing.attended;
+      const nowAttended = attended ? 1 : 0;
+      // 只处理有 student_id 关联的情况
+      const targetStudentId = finalStudentId || existing.student_id;
+      if (targetStudentId && wasAttended !== nowAttended) {
+        const student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(targetStudentId);
+        if (student && student.payment_mode === 'prepaid') {
+          const [sh, sm] = (start_time || existing.start_time).split(':').map(Number);
+          const [eh, em] = (end_time || existing.end_time).split(':').map(Number);
+          const durationHrs = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+          const finalFee = (hourly_fee !== undefined ? parseFloat(hourly_fee) : existing.hourly_fee) * durationHrs;
+
+          if (nowAttended === 1 && wasAttended === 0) {
+            // 签到 → 尝试扣费
+            if (finalFee > 0) {
+              let currentBalance = student.prepaid_balance || 0;
+              if (currentBalance >= finalFee) {
+                const newBalance = currentBalance - finalFee;
+                db.prepare(`UPDATE students SET prepaid_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(newBalance, targetStudentId);
+                db.prepare(
+                  `INSERT INTO prepaid_transactions (student_id, amount, balance_after, type, course_id, note) VALUES (?, ?, ?, 'deduct', ?, ?)`
+                ).run(targetStudentId, -finalFee, newBalance, id, `课程扣除 ¥${finalFee.toFixed(0)}（${existing.date} ${existing.start_time}-${existing.end_time}）`);
+              } else {
+                // 余额不足 → 标记待补交
+                db.prepare(
+                  `INSERT INTO prepaid_transactions (student_id, amount, balance_after, type, course_id, note) VALUES (?, ?, ?, 'deduct_failed', ?, ?)`
+                ).run(targetStudentId, -finalFee, currentBalance, id, `余额不足待补交 ¥${finalFee.toFixed(0)}（差额 ¥${(finalFee - currentBalance).toFixed(0)}）`);
+              }
+            }
+          } else if (nowAttended === 0 && wasAttended === 1) {
+            // 取消签到 → 退款
+            const tx = db.prepare(`SELECT * FROM prepaid_transactions WHERE course_id = ? AND student_id = ? AND type IN ('deduct', 'deduct_failed')`).get(id, targetStudentId);
+            if (tx) {
+              if (tx.type === 'deduct') {
+                // 之前扣过款，退还
+                const refundAmount = Math.abs(tx.amount);
+                const currentBalance = student.prepaid_balance || 0;
+                const newBalance = currentBalance + refundAmount;
+                db.prepare(`UPDATE students SET prepaid_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(newBalance, targetStudentId);
+                db.prepare(
+                  `INSERT INTO prepaid_transactions (student_id, amount, balance_after, type, course_id, note) VALUES (?, ?, ?, 'refund', ?, ?)`
+                ).run(targetStudentId, refundAmount, newBalance, id, `取消签到退还 ¥${refundAmount.toFixed(0)}（课程 #${id}）`);
+              }
+              // 删除旧的扣款/待补交记录
+              db.prepare(`DELETE FROM prepaid_transactions WHERE id = ?`).run(tx.id);
+            }
+          }
+        }
+      }
+    }
+
     const updated = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
     res.json({ data: updated });
   } catch (err) {

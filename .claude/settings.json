@@ -155,7 +155,9 @@
       "Bash(npx vue-tsc *)",
       "Bash(node -e \"require\\('./database'\\)\")",
       "Bash(git commit -m '清理无用代码 + 修复月历课程列表同一时段课程互相覆盖不显示的bug *)",
-      "Bash(git tag *)"
+      "Bash(git tag *)",
+      "Bash(node -e ' *)",
+      "Bash(git commit -m 'feat: 学生管理页面 + 预交课时费系统 *)"
     ]
   }
 }

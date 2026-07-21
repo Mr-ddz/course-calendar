@@ -144,8 +144,20 @@ export function adminDeleteTeacher(id) {
 export function getStudents(params) {
   return api.get('/students', { params })
 }
+export function createStudent(data) {
+  return api.post('/students', data)
+}
+export function updateStudent(id, data) {
+  return api.put(`/students/${id}`, data)
+}
 export function getStudentRecentFee(id) {
   return api.get('/students/recent-fee', { params: { id } })
+}
+export function rechargeStudent(id, data) {
+  return api.post(`/students/${id}/recharge`, data)
+}
+export function getStudentTransactions(id) {
+  return api.get(`/students/${id}/transactions`)
 }
 
 // ===== 课程 =====

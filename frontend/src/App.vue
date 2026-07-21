@@ -39,12 +39,13 @@ const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 const isAdmin = teacherInfo.id === 1
 
-const sidebarRoutes = ['/app/calendar', '/app/day', '/app/statistics', '/app/users']
+const sidebarRoutes = ['/app/calendar', '/app/day', '/app/statistics', '/app/students', '/app/users']
 const showSidebar = computed(() => sidebarRoutes.some(p => route.path.startsWith(p)))
 
 const navItems = computed(() => {
   const items = [
     { path: '/app/calendar', icon: '📅', label: '月历' },
+    { path: '/app/students', icon: '👤', label: '学生' },
     { path: '/app/statistics', icon: '📊', label: '统计' }
   ]
   if (isAdmin) {
@@ -54,7 +55,7 @@ const navItems = computed(() => {
 })
 
 const pageTitle = computed(() => {
-  const names = { 'calendar': '月历', 'statistics': '统计', 'day-detail': '课程详情', 'admin-users': '用户管理' }
+  const names = { 'calendar': '月历', 'statistics': '统计', 'day-detail': '课程详情', 'students': '学生管理', 'admin-users': '用户管理' }
   return names[route.name] || '课表侠'
 })
 
