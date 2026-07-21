@@ -276,12 +276,22 @@ app.put('/api/students/:id', (req, res) => {
     const { name, grade, hourly_fee, payment_mode } = req.body;
     const finalName = name || existing.name;
     const finalGrade = grade !== undefined ? grade : existing.grade;
-    const finalHourlyFee = hourly_fee !== undefined ? parseFloat(hourly_fee) : existing.hourly_fee;
     const finalPaymentMode = payment_mode || existing.payment_mode;
 
     db.prepare(
       `UPDATE students SET name = ?, grade = ?, hourly_fee = ?, payment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-    ).run(finalName, finalGrade, finalHourlyFee, finalPaymentMode, id);
+    ).run(finalName, finalGrade, parseFloat(hourly_fee) || 0, finalPaymentMode, id);
+
+    // 如果hourly_fee有变动，同步更新该学生所有未来未上的课程（已完成的课程保留历史价格）
+    if (hourly_fee !== undefined && parseFloat(hourly_fee) != existing.hourly_fee) {
+      const today = new Date().toISOString().split('T')[0];
+      const updatedCourses = db.prepare(
+        `UPDATE courses SET hourly_fee = ?, updated_at = CURRENT_TIMESTAMP WHERE student_id = ? AND date > ?`
+      ).run(parseFloat(hourly_fee), id, today);
+      if (updatedCourses.changes > 0) {
+        console.log(`📦 已同步学生 #${id} 的 ${updatedCourses.changes} 节未来课程单价为 ¥${parseFloat(hourly_fee)}`);
+      }
+    }
 
     const updated = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
     res.json({ data: updated });
@@ -490,18 +500,26 @@ app.post('/api/courses', (req, res) => {
       if (student) {
         student_name = student.name;
         grade = grade || student.grade;
+        // 课程填了新的单价且和学生表不同步时，更新学生表
+        if (hourly_fee && student.hourly_fee != hourly_fee) {
+          db.prepare(`UPDATE students SET hourly_fee = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(parseFloat(hourly_fee), student.id);
+        }
       } else {
         student_id = null;
       }
     }
     if (!student_id && student_name) {
       // 尝试查找已有学生，找不到就创建
-      let existing = db.prepare(`SELECT id, grade FROM students WHERE name = ? AND teacher_id = ?`).get(student_name, req.teacher.id);
+      let existing = db.prepare(`SELECT id, grade, hourly_fee FROM students WHERE name = ? AND teacher_id = ?`).get(student_name, req.teacher.id);
       if (existing) {
         student_id = existing.id;
         grade = grade || existing.grade;
+        // 课程填了新的单价且和学生表不同步时，更新学生表
+        if (hourly_fee && existing.hourly_fee != hourly_fee) {
+          db.prepare(`UPDATE students SET hourly_fee = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(parseFloat(hourly_fee), existing.id);
+        }
       } else {
-        const result = db.prepare(`INSERT INTO students (name, grade, teacher_id) VALUES (?, ?, ?)`).run(student_name, grade || '', req.teacher.id);
+        const result = db.prepare(`INSERT INTO students (name, grade, hourly_fee, teacher_id) VALUES (?, ?, ?, ?)`).run(student_name, grade || '', parseFloat(hourly_fee) || 0, req.teacher.id);
         student_id = result.lastInsertRowid;
       }
     }
@@ -548,8 +566,17 @@ app.put('/api/courses/:id', (req, res) => {
     let finalGrade = grade !== undefined ? grade : existing.grade;
     let finalStudentId = student_id !== undefined ? student_id : existing.student_id;
     if (student_id && !student_name) {
-      const s = db.prepare(`SELECT name, grade FROM students WHERE id = ?`).get(student_id);
+      const s = db.prepare(`SELECT name, grade, hourly_fee FROM students WHERE id = ?`).get(student_id);
       if (s) { finalName = s.name; finalGrade = finalGrade || s.grade; finalStudentId = student_id; }
+    }
+    // 课程单价有变化时同步到学生表
+    const targetStudentId = finalStudentId || existing.student_id;
+    const finalHourlyFee = hourly_fee !== undefined ? parseFloat(hourly_fee) : existing.hourly_fee;
+    if (targetStudentId && hourly_fee !== undefined) {
+      const st = db.prepare(`SELECT hourly_fee FROM students WHERE id = ?`).get(targetStudentId);
+      if (st && st.hourly_fee != finalHourlyFee) {
+        db.prepare(`UPDATE students SET hourly_fee = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(finalHourlyFee, targetStudentId);
+      }
     }
 
     // 如果更新所有未来课程（用于修改时间/费用等）
