@@ -230,4 +230,27 @@ if (!transactionsExist) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_transactions_student ON prepaid_transactions(student_id)`);
 }
 
+// ========== 6. 一次性迁移：从课程记录同步 hourly_fee 到学生表 ==========
+// 新加 hourly_fee 字段后，把学生最近一次课程的价格抄过来，避免线上数据全为 0
+if (studentCols.includes('hourly_fee')) {
+  const zeroCount = db.prepare(`SELECT COUNT(*) as cnt FROM students WHERE hourly_fee = 0`).get().cnt;
+  if (zeroCount > 0) {
+    const rows = db.prepare(`
+      SELECT s.id,
+        (SELECT hourly_fee FROM courses WHERE student_id = s.id AND hourly_fee > 0 ORDER BY date DESC, id DESC LIMIT 1) as fee
+      FROM students s WHERE s.hourly_fee = 0
+    `).all();
+    let updated = 0;
+    for (const r of rows) {
+      if (r.fee && r.fee > 0) {
+        db.prepare(`UPDATE students SET hourly_fee = ? WHERE id = ?`).run(r.fee, r.id);
+        updated++;
+      }
+    }
+    if (updated > 0) {
+      console.log(`📦 已从课程记录同步 ${updated} 名学生的课时单价`);
+    }
+  }
+}
+
 module.exports = db;
