@@ -24,12 +24,17 @@
     </header>
 
     <div class="students-table-wrapper">
-      <el-table :data="students" stripe style="width:100%" v-loading="loading" empty-text="暂无学生数据，点击上方「添加学生」开始">
+      <el-table :data="students" stripe style="width:100%" v-loading="loading" empty-text="暂无学生数据，点击上方「添加学生」开始" :row-class-name="tableRowClassName">
         <el-table-column prop="name" label="姓名" min-width="90" />
         <el-table-column prop="grade" label="年级" min-width="80" />
         <el-table-column label="课时单价" min-width="100">
           <template #default="{ row }">
             ¥{{ (row.hourly_fee || 0).toFixed(0) }}/时
+          </template>
+        </el-table-column>
+        <el-table-column label="已上课时" min-width="90">
+          <template #default="{ row }">
+            {{ row._total_hours ? Number(row._total_hours).toFixed(1) : '0.0' }} 小时
           </template>
         </el-table-column>
         <el-table-column label="缴费模式" min-width="90">
@@ -39,13 +44,13 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="预交余额" min-width="110">
+        <el-table-column label="预交余额" min-width="120">
           <template #default="{ row }">
             <span v-if="row.payment_mode === 'prepaid'">
-              <span :class="(row.prepaid_balance || 0) <= 0 ? 'balance-empty' : 'balance-ok'">
+              <span v-if="row._failed_count === 0" :class="(row.prepaid_balance || 0) <= 0 ? 'balance-empty' : 'balance-ok'">
                 ¥{{ (row.prepaid_balance || 0).toFixed(0) }}
               </span>
-              <el-tag v-if="row._failed_count > 0" type="danger" size="small" style="margin-left:4px">⚠️待补交</el-tag>
+              <el-tag v-if="row._failed_count > 0" type="danger" size="small" style="margin-left:4px">⚠️待补交 ¥{{ Math.abs(row._failed_amount || 0).toFixed(0) }}</el-tag>
             </span>
             <span v-else class="balance-na">—</span>
           </template>
@@ -238,6 +243,18 @@ function doSearch() { currentPage.value = 1; loadStudents() }
 function resetSearch() { searchName.value = ''; currentPage.value = 1; loadStudents() }
 function onPageChange(page) { currentPage.value = page; loadStudents() }
 function onPageSizeChange() { currentPage.value = 1; loadStudents() }
+
+// 欠费行高亮：余额不够一节课时整行变红
+function tableRowClassName({ row }) {
+  if (row.payment_mode === 'prepaid') {
+    const balance = row.prepaid_balance || 0
+    const oneLessonFee = row.hourly_fee || 0
+    if (row._failed_count > 0 || (oneLessonFee > 0 && balance <= oneLessonFee)) {
+      return 'row-debt'
+    }
+  }
+  return ''
+}
 
 // 添加/编辑弹窗
 const formDialogVisible = ref(false)
