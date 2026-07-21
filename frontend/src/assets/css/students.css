@@ -64,8 +64,14 @@
 .students-table-wrapper {
   background: #fff;
   margin: 0;
-  padding: 16px 20px;
+  padding: 16px 20px 4px;
   flex: 1;
+}
+
+.students-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 16px;
 }
 
 .balance-ok {

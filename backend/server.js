@@ -211,29 +211,32 @@ app.get('/api/teachers', (req, res) => {
 
 // ========== 学生管理 ==========
 
-// 获取学生列表（支持搜索，含预交费待补交计数）
+// 获取学生列表（支持搜索+分页，含预交费待补交计数）
 app.get('/api/students', (req, res) => {
   try {
-    const { name } = req.query;
-    let students;
-    // 用子查询附带待补交计数
-    const sql = `SELECT s.*,
+    const { name, page = 1, page_size = 20 } = req.query;
+    const baseSql = `SELECT s.*,
       (SELECT COUNT(*) FROM prepaid_transactions pt WHERE pt.student_id = s.id AND pt.type = 'deduct_failed') as _failed_count
       FROM students s`;
+    const countSql = `SELECT COUNT(*) as total FROM students s`;
+    const conditions = [];
+    const params = [];
+
     if (isAdmin(req.teacher)) {
-      if (name) {
-        students = db.prepare(`${sql} WHERE s.name LIKE ? ORDER BY s.name LIMIT 50`).all(`%${name}%`);
-      } else {
-        students = db.prepare(`${sql} ORDER BY s.name`).all();
-      }
+      if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
     } else {
-      if (name) {
-        students = db.prepare(`${sql} WHERE s.teacher_id = ? AND s.name LIKE ? ORDER BY s.name LIMIT 50`).all(req.teacher.id, `%${name}%`);
-      } else {
-        students = db.prepare(`${sql} WHERE s.teacher_id = ? ORDER BY s.name`).all(req.teacher.id);
-      }
+      conditions.push("s.teacher_id = ?");
+      params.push(req.teacher.id);
+      if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
     }
-    res.json({ data: students });
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const { total } = db.prepare(`${countSql} ${whereClause}`).get(...params);
+
+    const offset = (parseInt(page) - 1) * parseInt(page_size);
+    const students = db.prepare(`${baseSql} ${whereClause} ORDER BY s.name LIMIT ? OFFSET ?`).all(...params, parseInt(page_size), offset);
+
+    res.json({ data: students, total, page: parseInt(page), page_size: parseInt(page_size) });
   } catch (err) {
     console.error('获取学生列表失败:', err);
     res.status(500).json({ error: '获取学生列表失败' });

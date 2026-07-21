@@ -19,7 +19,7 @@
         </el-form>
       </div>
       <div class="students-count">
-        <span>共 {{ students.length }} 位学生</span>
+        <span>共 {{ total }} 位学生</span>
       </div>
     </header>
 
@@ -58,6 +58,19 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="students-pagination">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next"
+          size="small"
+          background
+          @size-change="onPageSizeChange"
+          @current-change="onPageChange"
+        />
+      </div>
     </div>
 
     <!-- 添加/编辑学生弹窗 -->
@@ -201,15 +214,19 @@ const gradeOptions = [
 const students = ref([])
 const loading = ref(false)
 const searchName = ref('')
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 // 列表
 async function loadStudents() {
   loading.value = true
   try {
-    const params = {}
+    const params = { page: currentPage.value, page_size: pageSize.value }
     if (searchName.value) params.name = searchName.value
     const res = await getStudents(params)
     students.value = (res.data.data || []).map(s => ({ ...s, hourly_fee: s.hourly_fee || 0, prepaid_balance: s.prepaid_balance || 0 }))
+    total.value = res.data.total || 0
   } catch (err) {
     ElMessage.error('加载学生列表失败')
   } finally {
@@ -217,8 +234,10 @@ async function loadStudents() {
   }
 }
 
-function doSearch() { loadStudents() }
-function resetSearch() { searchName.value = ''; loadStudents() }
+function doSearch() { currentPage.value = 1; loadStudents() }
+function resetSearch() { searchName.value = ''; currentPage.value = 1; loadStudents() }
+function onPageChange(page) { currentPage.value = page; loadStudents() }
+function onPageSizeChange() { currentPage.value = 1; loadStudents() }
 
 // 添加/编辑弹窗
 const formDialogVisible = ref(false)
