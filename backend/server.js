@@ -216,7 +216,12 @@ app.get('/api/students', (req, res) => {
   try {
     const { name, page = 1, page_size = 20 } = req.query;
     const baseSql = `SELECT s.*,
-      (SELECT COUNT(*) FROM prepaid_transactions pt WHERE pt.student_id = s.id AND pt.type = 'deduct_failed') as _failed_count
+      (SELECT COUNT(*) FROM prepaid_transactions pt WHERE pt.student_id = s.id AND pt.type = 'deduct_failed') as _failed_count,
+      (SELECT COALESCE(SUM(ABS(pt2.amount)), 0) FROM prepaid_transactions pt2 WHERE pt2.student_id = s.id AND pt2.type = 'deduct_failed') as _failed_amount,
+      (SELECT COALESCE(SUM(
+        CAST(substr(c.end_time, 1, 2) AS INTEGER) * 60 + CAST(substr(c.end_time, 4, 2) AS INTEGER) -
+        CAST(substr(c.start_time, 1, 2) AS INTEGER) * 60 - CAST(substr(c.start_time, 4, 2) AS INTEGER)
+      ) / 60.0, 0) FROM courses c WHERE c.student_id = s.id AND c.attended = 1) as _total_hours
       FROM students s`;
     const countSql = `SELECT COUNT(*) as total FROM students s`;
     const conditions = [];
@@ -290,6 +295,48 @@ app.put('/api/students/:id', (req, res) => {
       ).run(parseFloat(hourly_fee), id, today);
       if (updatedCourses.changes > 0) {
         console.log(`📦 已同步学生 #${id} 的 ${updatedCourses.changes} 节未来课程单价为 ¥${parseFloat(hourly_fee)}`);
+      }
+    }
+
+    // 从 settle 改为 prepaid 时：自动追扣所有已签到但未扣费的课程
+    if (payment_mode === 'prepaid' && existing.payment_mode !== 'prepaid') {
+      // 查出该学生所有已签到（attended=1）且没有预交费记录的课程
+      const pendingCourses = db.prepare(`
+        SELECT c.id, c.date, c.start_time, c.end_time, c.hourly_fee
+        FROM courses c
+        WHERE c.student_id = ? AND c.attended = 1
+          AND c.id NOT IN (SELECT course_id FROM prepaid_transactions WHERE student_id = ? AND course_id IS NOT NULL)
+        ORDER BY c.date ASC, c.start_time ASC
+      `).all(id, id);
+
+      if (pendingCourses.length > 0) {
+        let currentBalance = existing.prepaid_balance || 0;
+        let deducted = 0, failed = 0;
+        for (const c of pendingCourses) {
+          const [sh, sm] = c.start_time.split(':').map(Number);
+          const [eh, em] = c.end_time.split(':').map(Number);
+          const durationHrs = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+          const fee = (c.hourly_fee || 0) * durationHrs;
+          if (fee <= 0) continue;
+
+          if (currentBalance >= fee) {
+            currentBalance -= fee;
+            db.prepare(
+              `INSERT INTO prepaid_transactions (student_id, amount, balance_after, type, course_id, note) VALUES (?, ?, ?, 'deduct', ?, ?)`
+            ).run(id, -fee, currentBalance, c.id, `历史课程追扣 ¥${fee.toFixed(0)}（${c.date} ${c.start_time}-${c.end_time}）`);
+            deducted++;
+          } else {
+            db.prepare(
+              `INSERT INTO prepaid_transactions (student_id, amount, balance_after, type, course_id, note) VALUES (?, ?, ?, 'deduct_failed', ?, ?)`
+            ).run(id, -fee, currentBalance, c.id, `余额不足待补交 ¥${fee.toFixed(0)}（${c.date} ${c.start_time}-${c.end_time}）`);
+            failed++;
+          }
+        }
+        // 更新最终余额
+        if (currentBalance !== (existing.prepaid_balance || 0)) {
+          db.prepare(`UPDATE students SET prepaid_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(currentBalance, id);
+        }
+        console.log(`📦 学生 #${id} 切换预交模式：已追扣 ${deducted} 节，待补交 ${failed} 节`);
       }
     }
 

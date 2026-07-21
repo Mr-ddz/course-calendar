@@ -9,3 +9,11 @@ body {
 .el-table .course-cell {
   background-color: #fff0f3 !important;
 }
+
+/* 学生管理页：欠费行红色背景 */
+.el-table .row-debt td.el-table__cell {
+  background-color: #fef0f0 !important;
+}
+.el-table .row-debt:hover td.el-table__cell {
+  background-color: #fde2e2 !important;
+}

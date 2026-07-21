@@ -159,7 +159,11 @@
       "Bash(node -e ' *)",
       "Bash(git commit -m 'feat: 学生管理页面 + 预交课时费系统 *)",
       "Bash(lsof -ti:3002)",
-      "Bash(node scripts/migrate-hourly-fee.js)"
+      "Bash(node scripts/migrate-hourly-fee.js)",
+      "Bash(node)",
+      "Bash(node /Users/admin/Desktop/project/calendar/backend/_test.js)",
+      "Bash(node _t.js)",
+      "Bash(node /Users/admin/Desktop/project/calendar/backend/_t.js)"
     ]
   }
 }
