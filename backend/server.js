@@ -512,23 +512,100 @@ app.get('/api/courses/range', (req, res) => {
   }
 });
 
+// ===== 辅助函数：节假日数据缓存（用于工作日重复跳过假期） =====
+const holidayCache = {};
+// 启动时预加载当年节假日
+async function preloadHolidays() {
+  const years = [new Date().getFullYear(), new Date().getFullYear() + 1];
+  for (const year of years) {
+    try {
+      const response = await fetch(`https://timor.tech/api/holiday/year/${year}`, { signal: AbortSignal.timeout(5000) });
+      const data = await response.json();
+      if (data.code === 0 && data.holiday) {
+        holidayCache[year] = data.holiday;
+      }
+    } catch (e) {
+      console.log(`📅 无法获取 ${year} 年节假日数据，将按标准周末判断`);
+    }
+  }
+  console.log(`📅 已加载 ${Object.keys(holidayCache).length} 年节假日数据`);
+}
+function isWorkdayOrHoliday(dateStr) {
+  const year = dateStr.substring(0, 4);
+  const holidays = holidayCache[year];
+  if (!holidays) return 'normal'; // 无数据 → 正常按周末判断
+  const mmdd = dateStr.substring(5);
+  const info = holidays[mmdd];
+  if (!info) return 'normal';
+  if (info.holiday === true) return 'holiday';       // 放假
+  if (info.holiday === false) return 'workday';       // 调休补班
+  return 'normal';
+}
+
 // ===== 辅助函数：生成未来每周重复课程 =====
 const MAX_WEEKS = 52;
-function generateWeeklyCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description) {
+function generateWeeklyCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description, endDateStr) {
   const { student_name, grade, hourly_fee, attended, student_id } = courseData;
   const startDate = new Date(startDateStr);
   const insertStmt = db.prepare(
-    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'weekly', ?)`
+    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id, end_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'weekly', ?, ?)`
   );
 
+  const maxDate = endDateStr ? new Date(endDateStr) : null;
   const created = [{ id: firstInsertId, date: startDateStr }];
   for (let w = 1; w <= MAX_WEEKS; w++) {
     const nextDate = new Date(startDate);
     nextDate.setDate(nextDate.getDate() + w * 7);
     const dateStr = nextDate.toISOString().split('T')[0];
-    const result = insertStmt.run(teacherId, student_id || null, student_name, dateStr, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, firstInsertId);
+    if (maxDate && nextDate > maxDate) break;
+    const result = insertStmt.run(teacherId, student_id || null, student_name, dateStr, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, firstInsertId, endDateStr || null);
     created.push({ id: result.lastInsertRowid, date: dateStr });
+  }
+  return created;
+}
+
+// ===== 辅助函数：生成每周工作日重复课程 =====
+function generateWeekdaysCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description, endDateStr) {
+  const { student_name, grade, hourly_fee, attended, student_id } = courseData;
+  const insertStmt = db.prepare(
+    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id, end_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'weekdays', ?, ?)`
+  );
+
+  const startDate = new Date(startDateStr);
+  const maxDate = endDateStr ? new Date(endDateStr) : new Date(startDate);
+  if (!endDateStr) maxDate.setDate(maxDate.getDate() + MAX_WEEKS * 7); // 默认约52周后
+
+  const created = [{ id: firstInsertId, date: startDateStr }];
+  let current = new Date(startDate);
+  let count = 0;
+  const MAX_COURSES = 365; // 工作日最多生成一年的量
+
+  while (count < MAX_COURSES) {
+    current.setDate(current.getDate() + 1);
+    const dateStr = current.toISOString().split('T')[0];
+    const dow = current.getDay();
+    if (current > maxDate) break;
+
+    let shouldCreate = false;
+    // 周一~周五正常创建
+    if (dow >= 1 && dow <= 5) shouldCreate = true;
+
+    // 检查节假日/调休
+    const hd = isWorkdayOrHoliday(dateStr);
+    if (hd === 'holiday') shouldCreate = false;   // 法定假日跳过
+    if (hd === 'workday') shouldCreate = true;    // 调休补班（可能周末）创建
+
+    if (shouldCreate) {
+      const result = insertStmt.run(teacherId, student_id || null, student_name, dateStr, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, firstInsertId, endDateStr || null);
+      created.push({ id: result.lastInsertRowid, date: dateStr });
+      count++;
+    }
+  }
+
+  if (count >= MAX_COURSES) {
+    console.log(`⚠️ 工作日课程已超过上限 ${MAX_COURSES} 节，请检查截止日期`);
   }
   return created;
 }
@@ -580,10 +657,14 @@ app.post('/api/courses', (req, res) => {
     const courseId = result.lastInsertRowid;
 
     // 如果是每周重复，把第一节课也加入组，并生成未来52周的课程
-    if (repeat_type === 'weekly') {
+    if (repeat_type === 'weekly' || repeat_type === 'weekdays') {
       db.prepare(`UPDATE courses SET repeat_group_id = ? WHERE id = ?`).run(courseId, courseId);
       const courseData = { student_name, grade, hourly_fee, attended, student_id };
-      generateWeeklyCourses(req.teacher.id, courseData, courseId, date, start_time, end_time, color, description);
+      if (repeat_type === 'weekdays') {
+        generateWeekdaysCourses(req.teacher.id, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
+      } else {
+        generateWeeklyCourses(req.teacher.id, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
+      }
     }
 
     const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? OR id = ? ORDER BY date ASC`).all(courseId, courseId);
@@ -629,9 +710,92 @@ app.put('/api/courses/:id', (req, res) => {
     // 如果更新所有未来课程（用于修改时间/费用等）
     if (update_all_future && existing.repeat_group_id) {
       const groupId = existing.repeat_group_id;
+      const { end_date } = req.body;
+      const startFrom = date || existing.date;
+      const newRepeatType = repeat_type !== undefined ? repeat_type : existing.repeat_type;
+
+      // 重复类型发生变化 → 删除未来课程，按新类型重新生成
+      if (repeat_type !== undefined && repeat_type !== existing.repeat_type) {
+        // 删除所有未来未签到课程（不含当前这节课，它的日期被重用为新组的首节）
+        db.prepare(`DELETE FROM courses WHERE repeat_group_id = ? AND date > ? AND attended = 0`).run(groupId, startFrom);
+
+        if (repeat_type === 'none') {
+          // 改为不重复：当前课程脱离组
+          db.prepare(
+            `UPDATE courses SET student_name = ?, student_id = ?, date = ?, start_time = ?, end_time = ?,
+             color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?, repeat_type = ?,
+             repeat_group_id = NULL, end_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+          ).run(
+            finalName, finalStudentId,
+            date || existing.date,
+            start_time || existing.start_time,
+            end_time || existing.end_time,
+            color || existing.color,
+            description !== undefined ? description : existing.description,
+            finalGrade,
+            hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
+            attended !== undefined ? (attended ? 1 : 0) : existing.attended,
+            'none',
+            id
+          );
+          const remaining = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? ORDER BY date ASC`).all(groupId);
+          return res.json({ data: remaining });
+        }
+
+        // 切换为 weekly 或 weekdays：更新当前课程 + 重新生成
+        db.prepare(
+          `UPDATE courses SET student_name = ?, student_id = ?, date = ?, start_time = ?, end_time = ?,
+           color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?, repeat_type = ?,
+           end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        ).run(
+          finalName, finalStudentId,
+          date || existing.date,
+          start_time || existing.start_time,
+          end_time || existing.end_time,
+          color || existing.color,
+          description !== undefined ? description : existing.description,
+          finalGrade,
+          hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
+          attended !== undefined ? (attended ? 1 : 0) : existing.attended,
+          repeat_type,
+          end_date || existing.end_date,
+          id
+        );
+
+        // 更新整组的 end_date
+        if (end_date !== undefined) {
+          db.prepare(`UPDATE courses SET end_date = ? WHERE repeat_group_id = ?`).run(end_date || null, groupId);
+        }
+
+        // 按新类型重新生成未来课程
+        const newEndDate = end_date !== undefined ? end_date : existing.end_date;
+        const courseData = {
+          student_name: finalName,
+          grade: finalGrade,
+          hourly_fee: hourly_fee !== undefined ? parseFloat(hourly_fee) : existing.hourly_fee,
+          attended: 0,
+          student_id: targetStudentId || existing.student_id
+        };
+        if (repeat_type === 'weekdays') {
+          generateWeekdaysCourses(req.teacher.id, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
+        } else {
+          generateWeeklyCourses(req.teacher.id, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
+        }
+
+        const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? ORDER BY date ASC`).all(groupId);
+        return res.json({ data: courses });
+      }
+
+      // 重复类型没变 → 维持原有逻辑
+      if (end_date !== undefined) {
+        db.prepare(
+          `DELETE FROM courses WHERE repeat_group_id = ? AND date > ? AND date >= ? AND attended = 0`
+        ).run(groupId, end_date, startFrom);
+      }
+
       db.prepare(
         `UPDATE courses SET student_name = ?, student_id = ?, start_time = ?, end_time = ?,
-         color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?,
+         color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?, repeat_type = ?,
          updated_at = CURRENT_TIMESTAMP WHERE repeat_group_id = ? AND date >= ?`
       ).run(
         finalName, finalStudentId,
@@ -642,18 +806,26 @@ app.put('/api/courses/:id', (req, res) => {
         finalGrade,
         hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
         attended !== undefined ? (attended ? 1 : 0) : existing.attended,
+        newRepeatType,
         groupId,
-        date || existing.date
+        startFrom
       );
+
+      if (end_date !== undefined) {
+        db.prepare(`UPDATE courses SET end_date = ? WHERE repeat_group_id = ?`).run(end_date || null, groupId);
+      }
+
       const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? ORDER BY date ASC`).all(groupId);
       return res.json({ data: courses });
     }
 
     // 单独更新这节课
+    const endDateVal = req.body.end_date !== undefined ? req.body.end_date : existing.end_date;
+    const finalRepeatType = repeat_type !== undefined ? repeat_type : existing.repeat_type;
     db.prepare(
       `UPDATE courses SET student_name = ?, student_id = ?, date = ?, start_time = ?, end_time = ?,
        color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?, repeat_type = ?,
-       updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+       end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(
       finalName, finalStudentId,
       date || existing.date,
@@ -664,9 +836,14 @@ app.put('/api/courses/:id', (req, res) => {
       finalGrade,
       hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
       attended !== undefined ? (attended ? 1 : 0) : existing.attended,
-      repeat_type !== undefined ? repeat_type : existing.repeat_type,
+      finalRepeatType,
+      endDateVal,
       id
     );
+    // 如果改为不重复，脱离重复组
+    if (finalRepeatType === 'none' && existing.repeat_group_id) {
+      db.prepare(`UPDATE courses SET repeat_group_id = NULL WHERE id = ?`).run(id);
+    }
 
     // ===== 预交费处理：签到/取消签到触发扣费或退款 =====
     if (attended !== undefined) {
@@ -1125,6 +1302,7 @@ app.get('*', (_req, res) => {
 });
 
 // ========== 启动 ==========
+preloadHolidays();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`📚 课程表已启动: http://localhost:${PORT}`);
 });

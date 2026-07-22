@@ -69,7 +69,8 @@ if (tableExists) {
     attended: "INTEGER DEFAULT 0",
     repeat_type: "TEXT DEFAULT 'none'",
     repeat_group_id: "INTEGER DEFAULT NULL",
-    student_id: "INTEGER DEFAULT NULL"
+    student_id: "INTEGER DEFAULT NULL",
+    end_date: "TEXT DEFAULT NULL"
   };
   for (const [name, def] of Object.entries(fieldDefs)) {
     if (!colNames.includes(name)) {
