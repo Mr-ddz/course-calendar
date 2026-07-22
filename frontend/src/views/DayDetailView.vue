@@ -341,12 +341,19 @@ const dayTitle = computed(() => {
 
 // 当前编辑的课程是否属于未来（禁止修改签到）
 const isFutureCourse = computed(() => {
-  if (!courseForm.date) return false
-  // 未来的日期 → 禁止签到
-  if (dayjs(courseForm.date).isAfter(dayjs(), 'day')) return true
+  const cf = courseForm.value
+  console.log(cf)
+  if (!cf || !cf.date) return false
+  // 用时间戳比较日期是否在未来
+  const courseDate = dayjs(cf.date).startOf('day')
+  const today = dayjs().startOf('day')
+  if (courseDate.valueOf() > today.valueOf()) return true
   // 今天的课程，开始时间还没到 → 禁止签到
-  if (dayjs(courseForm.date).isSame(dayjs(), 'day') && courseForm.startTime) {
-    return dayjs(courseForm.startTime, 'HH:mm').isAfter(dayjs(), 'minute')
+  if (courseDate.valueOf() === today.valueOf() && cf.startTime) {
+    const [h, m] = cf.startTime.split(':').map(Number)
+    const courseStart = dayjs(cf.date).hour(h).minute(m)
+    const now = dayjs()
+    if (courseStart.valueOf() > now.valueOf()) return true
   }
   return false
 })
