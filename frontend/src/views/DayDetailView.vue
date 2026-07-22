@@ -341,7 +341,14 @@ const dayTitle = computed(() => {
 
 // 当前编辑的课程是否属于未来（禁止修改签到）
 const isFutureCourse = computed(() => {
-  return courseForm.date && dayjs(courseForm.date).isAfter(dayjs(), 'day')
+  if (!courseForm.date) return false
+  // 未来的日期 → 禁止签到
+  if (dayjs(courseForm.date).isAfter(dayjs(), 'day')) return true
+  // 今天的课程，开始时间还没到 → 禁止签到
+  if (dayjs(courseForm.date).isSame(dayjs(), 'day') && courseForm.startTime) {
+    return dayjs(courseForm.startTime, 'HH:mm').isAfter(dayjs(), 'minute')
+  }
+  return false
 })
 
 const totalDuration = computed(() => {
