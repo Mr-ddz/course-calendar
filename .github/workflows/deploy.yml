@@ -7,7 +7,27 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH 连接阿里云并部署
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 构建前端
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: 上传到阿里云
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ALIYUN_HOST }}
+          username: root
+          key: ${{ secrets.ALIYUN_SSH_KEY }}
+          source: "backend,frontend/dist,frontend/package.json,frontend/package-lock.json,package.json,package-lock.json"
+          target: "/root"
+          strip_components: 0
+          rm: false
+
+      - name: 重启服务
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ALIYUN_HOST }}
@@ -15,21 +35,9 @@ jobs:
           key: ${{ secrets.ALIYUN_SSH_KEY }}
           script: |
             set -e
-            echo "📦 拉取最新代码..."
-            cd /root
-            git fetch origin
-            git reset --hard origin/develop
-
-            echo "🔧 安装前端依赖并构建..."
-            cd frontend
-            npm install
-            npm run build
-            cd ..
-
             echo "🔧 安装后端依赖..."
-            cd backend
+            cd /root/backend
             npm install
-            cd ..
 
             echo "🚀 重启服务..."
             pm2 restart course-calendar
