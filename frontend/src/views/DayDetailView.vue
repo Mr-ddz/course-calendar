@@ -72,6 +72,7 @@
             </div>
             <div class="course-time">
               <span v-if="course.repeat_type === 'weekly'" class="repeat-badge">🔄每周</span>
+              <span v-if="course.repeat_type === 'weekdays'" class="repeat-badge">🔄工作日</span>
               {{ course.start_time }} - {{ course.end_time }}
             </div>
             <div v-if="!hideStudentName" class="course-meta">
@@ -169,7 +170,23 @@
           <el-radio-group id="course_repeat" v-model="courseForm.repeat_type">
             <el-radio value="none">不重复</el-radio>
             <el-radio value="weekly">每周（{{ weekDayOfDate(courseForm.date) }}）</el-radio>
+            <el-radio value="weekdays">每周（工作日）</el-radio>
           </el-radio-group>
+          <div v-if="courseForm.repeat_type === 'weekdays'" class="repeat-hint">
+            📌 将在每周一至周五的 {{ courseForm.startTime }} 自动创建课程，跳过法定节假日
+          </div>
+        </el-form-item>
+        <el-form-item v-if="courseForm.repeat_type !== 'none'" label="截止日期" label-for="course_end_date">
+          <el-date-picker
+            id="course_end_date"
+            v-model="courseForm.end_date"
+            type="date"
+            placeholder="不填则自动生成一年"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 200px"
+            :disabled-date="disableEndDate"
+          />
         </el-form-item>
         <el-form-item label="签到" label-for="course_attended">
           <el-switch
@@ -371,8 +388,14 @@ function getDefaultForm() {
     grade: '',
     hourly_fee: '',
     attended: false,
-    repeat_type: 'none'
+    repeat_type: 'none',
+    end_date: ''
   }
+}
+
+function disableEndDate(time) {
+  // 截止日期不能早于课程创建日期
+  return dateStr.value && dayjs(time).isBefore(dayjs(dateStr.value), 'day')
 }
 
 // 学生搜索（input 自动补全）
@@ -502,7 +525,8 @@ function editCourse(course) {
     grade: course.grade || '',
     hourly_fee: course.hourly_fee || '',
     attended: !!course.attended,
-    repeat_type: course.repeat_type || 'none'
+    repeat_type: course.repeat_type || 'none',
+    end_date: course.end_date || ''
   }
   dialogVisible.value = true
 }
@@ -535,21 +559,24 @@ async function saveCourse() {
     return
   }
 
-  // 编辑每周重复课程时：询问是否更新所有未来课程
-  if (isEditing.value && editingRepeatGroupId.value && courseForm.value.repeat_type === 'weekly') {
+  // 编辑重复课程时：询问是否更新所有未来课程
+  if (isEditing.value && editingRepeatGroupId.value) {
     try {
       await ElMessageBox.confirm(
-        '这是一门每周重复的课程，是否同时修改所有未来的课程？\n点"取消"只修改本节课。',
+        '这是一门重复课程，是否同时修改所有未来的课程？\n点"取消"只修改本节课。',
         '修改重复课程',
         {
           confirmButtonText: '修改全部未来课程',
           cancelButtonText: '只修改本节课',
+          distinguishCancelAndClose: true,
           type: 'info'
         }
       )
       // 用户确认：标记更新全部
       editingUpdateAllFuture.value = true
-    } catch {
+    } catch (err) {
+      if (err === 'close') return // 点X关闭 → 不保存
+      // 点取消 → 只修改本节课，继续正常保存
       editingUpdateAllFuture.value = false
     }
   }
@@ -567,7 +594,8 @@ async function saveCourse() {
       grade: courseForm.value.grade || '',
       hourly_fee: courseForm.value.hourly_fee ? parseFloat(courseForm.value.hourly_fee) : 0,
       attended: courseForm.value.attended,
-      repeat_type: courseForm.value.repeat_type || 'none'
+      repeat_type: courseForm.value.repeat_type || 'none',
+      end_date: courseForm.value.end_date || undefined
     }
     if (isEditing.value) {
       if (editingUpdateAllFuture.value) {
@@ -578,7 +606,9 @@ async function saveCourse() {
     } else {
       await createCourse(data)
       if (courseForm.value.repeat_type === 'weekly') {
-        ElMessage.success('课程已添加，已自动创建未来52周的课程')
+        ElMessage.success('课程已添加，已自动创建未来每周的课程')
+      } else if (courseForm.value.repeat_type === 'weekdays') {
+        ElMessage.success('课程已添加，已自动创建未来每个工作日的课程')
       } else {
         ElMessage.success('课程已添加')
       }

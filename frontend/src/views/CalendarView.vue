@@ -36,7 +36,7 @@
                   :key="si"
                   class="cal-student-tag"
                   :style="{ background: s.color + '30', color: s.color }"
-                ><span class="tag-name">{{ s.name }}</span><span v-if="s.teacherName" class="tag-teacher">{{ s.teacherName }}</span> <span class="tag-time">{{ s.time }}</span><span v-if="s.repeatType === 'weekly'" class="tag-repeat">🔄</span></span>
+                ><span class="tag-name">{{ s.name }}</span><span v-if="s.teacherName" class="tag-teacher">{{ s.teacherName }}</span> <span class="tag-time">{{ s.time }}</span><span v-if="s.repeatType === 'weekly'" class="tag-repeat">🔄</span><span v-if="s.repeatType === 'weekdays'" class="tag-repeat">📆</span></span>
                 <span v-if="day.students.length > 3" class="cal-student-more" @click.stop="goToDay(day.dateStr)">+{{ day.students.length - 3 }} 更多 →</span>
               </div>
             </template>
@@ -78,6 +78,7 @@
                 <span :class="['cell-name', { 'cell-name--hidden': hideStudentName }]">{{ course.student_name }}</span>
                 <span class="cell-time">{{ course.start_time }}-{{ course.end_time }}</span>
                 <span v-if="course.repeat_type === 'weekly'" class="cell-repeat">🔄</span>
+                <span v-if="course.repeat_type === 'weekdays'" class="cell-repeat">📆</span>
               </div>
             </template>
           </el-table-column>
