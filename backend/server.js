@@ -1211,9 +1211,33 @@ app.post('/api/register', (req, res) => {
     }
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const finalRole = role === 'manager' ? 'manager' : 'teacher';
     db.prepare(
       `INSERT INTO teachers (name, username, password, email, source, status, role) VALUES (?, ?, ?, ?, 'email', 'pending', ?)`
-    ).run(name, name, hash, email, role === 'manager' ? 'manager' : 'teacher');
+    ).run(name, name, hash, email, finalRole);
+
+    // 给系统邮箱发送新用户注册通知
+    if (transporter) {
+      const roleLabel = finalRole === 'manager' ? '管理员' : '教师';
+      transporter.sendMail({
+        from: SMTP_FROM,
+        to: SMTP_FROM,
+        subject: '课表侠 - 新用户注册通知',
+        html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+          <h2 style="color:#667eea;">课表侠</h2>
+          <p>有新的用户注册，请尽快审核：</p>
+          <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0;">
+            <p>👤 姓名：<strong>${name}</strong></p>
+            <p>📧 邮箱：${email}</p>
+            <p>🏷️ 身份：${roleLabel}</p>
+          </div>
+          <p style="text-align:center;margin:24px 0;">
+            <a href="${SITE_URL}/login" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往审核</a>
+          </p>
+          <p style="color:#999;font-size:12px;">登录地址：${SITE_URL}</p>
+        </div>`
+      }).catch(e => console.error('发送新用户注册通知失败:', e));
+    }
 
     res.json({ message: '注册成功，请等待管理员审核' });
   } catch (err) {
