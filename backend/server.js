@@ -1200,8 +1200,19 @@ app.post('/api/register', (req, res) => {
 // 获取所有教师（仅 admin）
 app.get('/api/admin/teachers', (req, res) => {
   try {
-    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
-    const teachers = db.prepare(`SELECT id, name, username, email, source, status, created_at FROM teachers ORDER BY id`).all();
+    if (!isSuperAdmin(req.teacher) && getRole(req.teacher) !== 'manager') return res.status(403).json({ error: '无权访问' });
+    const { role } = req.query;
+    let teachers;
+    if (isSuperAdmin(req.teacher)) {
+      if (role) {
+        teachers = db.prepare(`SELECT id, name, username, email, source, status, role, created_at FROM teachers WHERE role = ? ORDER BY id`).all(role);
+      } else {
+        teachers = db.prepare(`SELECT id, name, username, email, source, status, role, created_at FROM teachers ORDER BY id`).all();
+      }
+    } else {
+      // manager 只能看见自己名下的教师
+      teachers = db.prepare(`SELECT id, name, username, email, source, status, role, created_at FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
+    }
     res.json({ data: teachers });
   } catch (err) {
     console.error('获取教师列表失败:', err);
@@ -1214,20 +1225,66 @@ app.post('/api/admin/teachers', (req, res) => {
   try {
     const isManagerUser = getRole(req.teacher) === 'manager';
     if (!isSuperAdmin(req.teacher) && !isManagerUser) return res.status(403).json({ error: '无权访问' });
-    let { name, username, password, role } = req.body;
+    let { name, username, password, role, email, managed_by } = req.body;
     if (isManagerUser) role = 'teacher';
     if (!name || !username || !password) {
       return res.status(400).json({ error: '请填写姓名、用户名和密码' });
     }
+    if (!email) {
+      return res.status(400).json({ error: '请填写邮箱' });
+    }
     const existing = db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(username);
     if (existing) return res.status(400).json({ error: '用户名已存在' });
+    const emailExists = db.prepare(`SELECT id FROM teachers WHERE email = ?`).get(email);
+    if (emailExists) return res.status(400).json({ error: '该邮箱已被使用' });
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const finalRole = role || 'teacher';
+    let finalManagedBy = req.teacher.id;
+    // super_admin 创建 teacher 时可以选择归属到某个 manager 下
+    if (isSuperAdmin(req.teacher) && finalRole === 'teacher' && managed_by) {
+      finalManagedBy = parseInt(managed_by);
+    }
     const result = db.prepare(
-      `INSERT INTO teachers (name, username, password, source, status, role, managed_by) VALUES (?, ?, ?, 'admin', 'active', ?, ?)`
-    ).run(name, username, hash, finalRole, req.teacher.id);
+      `INSERT INTO teachers (name, username, password, email, source, status, role, managed_by) VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`
+    ).run(name, username, hash, email, finalRole, finalManagedBy);
     const teacher = db.prepare(`SELECT id, name, username, email, source, status, role FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
+
+    // 发送邮件通知
+    if (teacher.email && transporter) {
+      const loginUrl = `${SITE_URL}/login`;
+      const roleLabel = finalRole === 'manager' ? '管理员' : '教师';
+      const subject = `您已被添加为课表侠${roleLabel}`;
+      // 管理员邮箱：有归属 manager 则用 manager 的邮箱，否则用系统邮箱
+      let adminEmail = SMTP_FROM;
+      if (finalRole === 'teacher' && finalManagedBy) {
+        const mgr = db.prepare(`SELECT email FROM teachers WHERE id = ?`).get(finalManagedBy);
+        if (mgr && mgr.email) adminEmail = mgr.email;
+      }
+      const html = `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+        <h2 style="color:#667eea;">课表侠</h2>
+        <p>尊敬的 <strong>${teacher.name}</strong>：</p>
+        <p>您已被添加为课表侠${roleLabel}账号。</p>
+        <p>请使用以下信息登录：</p>
+        <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0;">
+          <p>🔗 网址：<a href="${loginUrl}" style="color:#667eea;">${loginUrl}</a></p>
+          <p>👤 账户：${teacher.email}</p>
+          <p>🔑 初始密码：<strong>${password}</strong></p>
+        </div>
+        <p>登录后建议立即修改密码。</p>
+        <p>如有任何问题，请联系您的 <u><a href="mailto:${adminEmail}" style="color:#667eea;">管理员</a></u>。</p>
+        <p style="color:#999;font-size:12px;margin-top:24px;">课表侠团队</p>
+      </div>`;
+      transporter.sendMail({
+        from: SMTP_FROM,
+        to: teacher.email,
+        subject,
+        html
+      }).then(() => {
+        console.log(`📧 已发送${roleLabel}创建通知邮件到 ${teacher.email}`);
+      }).catch(e => console.error('发送创建通知邮件失败:', e));
+    }
+
     res.status(201).json({ data: teacher });
   } catch (err) {
     console.error('添加教师失败:', err);
