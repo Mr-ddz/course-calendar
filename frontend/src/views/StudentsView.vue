@@ -2,7 +2,7 @@
   <div class="students-page">
     <header class="students-header">
       <div class="students-header-top">
-        <h1 class="students-title">👤 学生管理</h1>
+        <h1 class="students-title"><el-icon><User /></el-icon> 学生管理</h1>
       </div>
       <div class="students-toolbar">
         <el-form :inline="true" size="small" @submit.prevent="doSearch" style="flex:1">
