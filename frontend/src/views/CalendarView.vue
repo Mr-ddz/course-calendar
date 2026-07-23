@@ -52,7 +52,7 @@
     <!-- 课程 timetable -->
     <div class="timetable-wrapper">
       <div class="timetable-header">
-        <h2 class="timetable-title">📅 {{ monthLabel }}（周）课程安排</h2>
+        <h2 class="timetable-title"><el-icon><Calendar /></el-icon> {{ monthLabel }}（周）课程安排</h2>
         <div class="timetable-switch">
           <span class="switch-label" :class="{ 'is-active': !hideStudentName }">姓名</span>
           <el-switch v-model="hideStudentName" size="small" style="margin: 0 4px;" />

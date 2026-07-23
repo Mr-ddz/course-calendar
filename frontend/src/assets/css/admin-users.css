@@ -5,7 +5,7 @@
 .admin-header-top {
   display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
 }
-.admin-title { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+.admin-title { font-size: 20px; font-weight: 700; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
 .admin-user { display: flex; align-items: center; gap: 8px; }
 .admin-user-name {
   font-size: 13px; background: rgba(255,255,255,0.15);

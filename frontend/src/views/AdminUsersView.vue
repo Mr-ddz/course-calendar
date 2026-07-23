@@ -2,7 +2,7 @@
   <div class="admin-page">
     <header class="admin-header">
       <div class="admin-header-top">
-        <h1 class="admin-title">👤 用户管理</h1>
+        <h1 class="admin-title"><el-icon><UserFilled /></el-icon> 用户管理</h1>
       </div>
       <div class="admin-toolbar">
         <div class="admin-toolbar-left">
@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeacher } from '../api/index.js'

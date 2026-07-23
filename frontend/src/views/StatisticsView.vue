@@ -3,7 +3,7 @@
     <!-- 顶部导航 -->
     <header class="stats-header">
       <div class="stats-header-top">
-        <h1 class="stats-title">📊 统计</h1>
+        <h1 class="stats-title"><el-icon><DataAnalysis /></el-icon> 统计</h1>
         <div class="stats-user">
           
         </div>

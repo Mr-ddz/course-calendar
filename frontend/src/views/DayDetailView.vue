@@ -358,7 +358,6 @@ const dayTitle = computed(() => {
 // 当前编辑的课程是否属于未来（禁止修改签到）
 const isFutureCourse = computed(() => {
   const cf = courseForm.value
-  console.log(cf)
   if (!cf || !cf.date) return false
   // 用时间戳比较日期是否在未来
   const courseDate = dayjs(cf.date).startOf('day')
