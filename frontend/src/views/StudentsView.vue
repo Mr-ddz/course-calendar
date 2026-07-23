@@ -60,6 +60,7 @@
             <el-button v-if="row.payment_mode === 'prepaid'" type="success" size="small" plain @click="openRechargeDialog(row)">充值</el-button>
             <el-button v-if="row.payment_mode === 'prepaid'" size="small" @click="openTransactionsDialog(row)">流水</el-button>
             <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
+            <el-button size="small" type="danger" plain @click="deleteStudent(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -205,9 +206,9 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions } from '../api/index.js'
+import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi } from '../api/index.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -296,6 +297,19 @@ function openEditDialog(row) {
   form.hourly_fee = row.hourly_fee || ''
   form.payment_mode = row.payment_mode || 'settle'
   formDialogVisible.value = true
+}
+
+async function deleteStudent(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除「${row.name}」吗？\n这将同时删除该学生名下的所有课程、签到记录和预交流水，不可恢复！`,
+      '确认删除',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await deleteStudentApi(row.id)
+    ElMessage.success(`已删除「${row.name}」及其所有课程数据`)
+    loadStudents()
+  } catch { /* cancel */ }
 }
 
 async function saveForm() {

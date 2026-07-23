@@ -255,4 +255,21 @@ if (hasFeeCol) {
   }
 }
 
+// ========== 7. 教师表角色字段迁移 ==========
+const teacherColsMigration = db.prepare(`SELECT name FROM pragma_table_info('teachers')`).all().map(r => r.name);
+const roleFields = {
+  role: "TEXT DEFAULT 'teacher'",
+  managed_by: "INTEGER DEFAULT NULL"
+};
+for (const [name, def] of Object.entries(roleFields)) {
+  if (!teacherColsMigration.includes(name)) {
+    db.exec(`ALTER TABLE teachers ADD COLUMN ${name} ${def}`);
+  }
+}
+// 将 admin (id=1) 设为 super_admin
+const adminUpdate = db.prepare(`UPDATE teachers SET role = 'super_admin' WHERE id = 1 AND role = 'teacher'`).run();
+if (adminUpdate.changes > 0) {
+  console.log(`👑 已将管理员账号设为 super_admin`);
+}
+
 module.exports = db;
