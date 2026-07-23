@@ -2,14 +2,13 @@
   <div class="admin-page">
     <header class="admin-header">
       <div class="admin-header-top">
-        <h1 class="admin-title">👤 用户管理</h1>
-        
+        <h1 class="admin-title"><el-icon><UserFilled /></el-icon> 用户管理</h1>
       </div>
       <div class="admin-toolbar">
         <div class="admin-toolbar-left">
-          <span class="admin-count">共 {{ teachers.length }} 位教师</span>
+          <span class="admin-count">共 {{ teachers.length }} 位用户</span>
         </div>
-        <el-button type="primary" size="small" @click="showAddDialog = true">+ 添加教师</el-button>
+        <el-button type="primary" size="small" @click="openAddDialog">+ {{ isSuperAdmin ? '添加用户' : '添加教师' }}</el-button>
       </div>
     </header>
 
@@ -22,6 +21,13 @@
           <template #default="{ row }">
             <span v-if="row.email">{{ row.email }}</span>
             <span v-else class="no-email">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="角色" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.id === 1" type="danger" size="small">超级管理员</el-tag>
+            <el-tag v-else-if="row.role === 'manager'" type="warning" size="small">管理员</el-tag>
+            <el-tag v-else type="info" size="small">教师</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="来源" width="100">
@@ -50,17 +56,39 @@
       </el-table>
     </div>
 
-    <!-- 添加教师对话框 -->
-    <el-dialog v-model="showAddDialog" title="添加教师" width="420px" destroy-on-close @closed="resetAddForm">
-      <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="80px" size="large">
+    <!-- 添加用户对话框 -->
+    <el-dialog v-model="showAddDialog" :title="isSuperAdmin ? '添加用户' : '添加教师'" width="520px" destroy-on-close @closed="resetAddForm">
+      <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="100px" size="large">
         <el-form-item label="姓名" prop="name">
           <el-input v-model="addForm.name" placeholder="如：张老师" />
         </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="addForm.username" placeholder="用于登录" />
         </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="addForm.email" placeholder="接收登录通知" />
+        </el-form-item>
         <el-form-item label="密码" prop="password">
-          <el-input v-model="addForm.password" type="password" placeholder="初始密码" show-password />
+          <el-input v-model="addForm.password" type="password" placeholder="输入或点击下方按钮生成" show-password />
+          <el-button size="small" type="primary" plain style="margin-top:6px;font-size:12px" @click="generatePassword">随机生成密码</el-button>
+        </el-form-item>
+        <el-form-item v-if="isSuperAdmin" label="角色">
+          <el-radio-group v-model="addForm.role">
+            <el-radio value="teacher">教师</el-radio>
+            <el-radio value="manager">管理员</el-radio>
+          </el-radio-group>
+          <div v-if="addForm.role === 'manager'" style="font-size:12px;color:#909399;margin-top:4px">
+            👑 管理员可以创建和管理自己名下的教师账号，查看他们的课程数据
+          </div>
+        </el-form-item>
+        <el-form-item v-if="isSuperAdmin && addForm.role === 'teacher'" label="所属管理员">
+          <el-select v-model="addForm.managed_by" placeholder="不选则无归属" clearable style="width:100%">
+            <el-option label="不设置（无归属）" value="" />
+            <el-option v-for="m in managerOptions" :key="m.id" :label="m.name" :value="m.id" />
+          </el-select>
+          <div style="font-size:12px;color:#909399;margin-top:4px">
+            选择后该教师将归属于所选管理员名下
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -79,16 +107,20 @@ import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeach
 
 const router = useRouter()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
+const isSuperAdmin = teacherInfo.role === 'super_admin'
 
 const teachers = ref([])
 const loading = ref(false)
 const showAddDialog = ref(false)
 const adding = ref(false)
 const addFormRef = ref(null)
-const addForm = ref({ name: '', username: '', password: '' })
+const managerOptions = ref([])
+
+const addForm = ref({ name: '', username: '', email: '', password: '', role: 'teacher', managed_by: '' })
 const addRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  email: [{ required: true, type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
@@ -103,15 +135,57 @@ async function loadTeachers() {
   } finally { loading.value = false }
 }
 
+async function loadManagerOptions() {
+  if (!isSuperAdmin) return
+  try {
+    const res = await adminGetTeachers({ role: 'manager' })
+    managerOptions.value = res.data.data || []
+  } catch {}
+}
+
+function generatePassword() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_'
+  const length = 8 + Math.floor(Math.random() * 5) // 8~12 位
+  // 保证至少包含一个大写字母、一个小写字母、一个数字、一个下划线
+  let pwd = ''
+  pwd += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]
+  pwd += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]
+  pwd += '0123456789'[Math.floor(Math.random() * 10)]
+  pwd += '_'
+  for (let i = 4; i < length; i++) {
+    pwd += chars[Math.floor(Math.random() * chars.length)]
+  }
+  // 打乱顺序
+  addForm.value.password = pwd.split('').sort(() => Math.random() - 0.5).join('')
+}
+
+function openAddDialog() {
+  if (isSuperAdmin) {
+    loadManagerOptions()
+  }
+  showAddDialog.value = true
+}
+
 async function handleAddTeacher() {
   const valid = await addFormRef.value?.validate().catch(() => false)
   if (!valid) return
   adding.value = true
   try {
-    await adminAddTeacher(addForm.value)
-    ElMessage.success('教师已添加')
+    const data = {
+      name: addForm.value.name,
+      username: addForm.value.username,
+      email: addForm.value.email,
+      password: addForm.value.password,
+      role: isSuperAdmin ? addForm.value.role : 'teacher'
+    }
+    if (isSuperAdmin && addForm.value.role === 'teacher' && addForm.value.managed_by) {
+      data.managed_by = addForm.value.managed_by
+    }
+    await adminAddTeacher(data)
+    const roleLabel = addForm.value.role === 'manager' ? '管理员' : '教师'
+    ElMessage.success(`${roleLabel}已添加，通知邮件已发送`)
+    await loadTeachers()
     showAddDialog.value = false
-    loadTeachers()
   } catch (err) {
     ElMessage.error(err.response?.data?.error || '添加失败')
   } finally { adding.value = false }
@@ -159,7 +233,7 @@ async function deleteUser(row) {
 }
 
 function resetAddForm() {
-  addForm.value = { name: '', username: '', password: '' }
+  addForm.value = { name: '', username: '', email: '', password: '', role: 'teacher', managed_by: '' }
 }
 
 onMounted(() => { loadTeachers() })

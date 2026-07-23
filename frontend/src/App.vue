@@ -7,7 +7,6 @@
     <Sidebar
       :collapsed="collapsed"
       :nav-items="navItems"
-      :teacher-id="teacherInfo.id"
       @toggle="collapsed = !collapsed"
     />
 
@@ -16,7 +15,7 @@
         <span class="top-bar-title">{{ pageTitle }}</span>
         <div class="top-bar-right">
           <span class="top-bar-user">{{ teacherName }}</span>
-          <span class="top-bar-role">{{ isAdmin ? '管理员' : '教师' }}</span>
+          <span class="top-bar-role">{{ teacherRole === 'super_admin' ? '超级管理员' : teacherRole === 'manager' ? '管理员' : '教师' }}</span>
         </div>
       </el-header>
 
@@ -35,21 +34,25 @@ import Sidebar from './components/Sidebar.vue'
 const route = useRoute()
 const collapsed = ref(false)
 
-const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
-const teacherName = teacherInfo.name || ''
-const isAdmin = teacherInfo.id === 1
+const teacherName = computed(() => route.path && (JSON.parse(localStorage.getItem('teacher') || '{}').name || ''))
+const teacherRole = computed(() => route.path && (JSON.parse(localStorage.getItem('teacher') || '{}').role || 'teacher'))
+const canManageUsers = computed(() => {
+  void route.path
+  const role = teacherRole.value
+  return role === 'super_admin' || role === 'manager'
+})
 
 const sidebarRoutes = ['/app/calendar', '/app/day', '/app/statistics', '/app/students', '/app/users']
 const showSidebar = computed(() => sidebarRoutes.some(p => route.path.startsWith(p)))
 
 const navItems = computed(() => {
   const items = [
-    { path: '/app/calendar', icon: '📅', label: '月历' },
-    { path: '/app/students', icon: '👤', label: '学生' },
-    { path: '/app/statistics', icon: '📊', label: '统计' }
+    { path: '/app/calendar', icon: 'Calendar', label: '月历' },
+    { path: '/app/students', icon: 'User', label: '学生' },
+    { path: '/app/statistics', icon: 'DataAnalysis', label: '统计' }
   ]
-  if (isAdmin) {
-    items.push({ path: '/app/users', icon: '👤', label: '用户管理' })
+  if (canManageUsers.value) {
+    items.push({ path: '/app/users', icon: 'UserFilled', label: '用户管理' })
   }
   return items
 })
