@@ -44,18 +44,22 @@
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : (row.status === 'pending' ? 'warning' : 'danger')" size="small">
-              {{ row.status === 'active' ? '正常' : (row.status === 'pending' ? '申请中' : '禁用') }}
-            </el-tag>
+            <el-tag v-if="row.status === 'pending'" type="warning" size="small">申请中</el-tag>
+            <el-tag v-else-if="row.status === 'disabled'" type="danger" size="small">禁用</el-tag>
+            <el-tag v-else-if="row._inactive" type="info" size="small">不活跃</el-tag>
+            <el-tag v-else type="success" size="small">正常</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="130">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'pending'" type="success" size="small" @click="approveUser(row)">通过</el-button>
-            <el-button v-if="row.status === 'pending'" type="danger" size="small" @click="rejectUser(row)">拒绝</el-button>
-            <el-button v-if="row.status === 'active' && row.id !== 1" type="danger" size="small" plain @click="toggleStatus(row, 'disabled')">禁用</el-button>
-            <el-button v-if="row.status === 'disabled'" type="success" size="small" plain @click="toggleStatus(row, 'active')">启用</el-button>
-            <el-button v-if="row.id !== 1" type="danger" size="small" plain @click="deleteUser(row)">删除</el-button>
+            <div class="action-btns">
+              <el-button v-if="row.status === 'pending'" class="btn-approve" size="small" @click="approveUser(row)">通过</el-button>
+              <el-button v-if="row.status === 'pending'" class="btn-reject" size="small" @click="rejectUser(row)">拒绝</el-button>
+              <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-disable" size="small" @click="toggleStatus(row, 'disabled')">禁用</el-button>
+              <el-button v-if="row.status === 'disabled'" class="btn-enable" size="small" @click="toggleStatus(row, 'active')">启用</el-button>
+              <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-resetpwd" size="small" @click="openResetPwdDialog(row)">重置密码</el-button>
+              <el-button v-if="row.id !== 1" class="btn-delete" size="small" @click="deleteUser(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -101,11 +105,27 @@
         <el-button type="primary" :loading="adding" @click="handleAddTeacher">添加</el-button>
       </template>
     </el-dialog>
+
+    <!-- 重置密码对话框 -->
+    <el-dialog v-model="showResetPwdDialog" title="重置密码" width="420px" destroy-on-close @closed="resetPwdDialog">
+      <div class="reset-pwd-info">即将重置「{{ resetPwdTarget?.name }}」的密码，该操作不会影响任何课程或学生数据。</div>
+      <el-form ref="resetPwdFormRef" :model="resetPwdForm" :rules="resetPwdRules" label-width="80px" size="large" style="margin-top:12px">
+        <el-form-item label="新密码" prop="password">
+          <el-input v-model="resetPwdForm.password" type="password" placeholder="输入或点击下方按钮生成" show-password />
+          <el-button size="small" type="primary" plain style="margin-top:6px;font-size:12px" @click="generateResetPwd">随机生成密码</el-button>
+        </el-form-item>
+      </el-form>
+      <div style="font-size:12px;color:#909399;text-align:center;margin-top:4px">重置后将发送邮件通知该用户</div>
+      <template #footer>
+        <el-button @click="showResetPwdDialog = false">取消</el-button>
+        <el-button type="primary" :loading="resettingPwd" @click="handleResetPwd">确定重置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeacher } from '../api/index.js'
@@ -235,6 +255,55 @@ async function deleteUser(row) {
     ElMessage.success('已删除')
     loadTeachers()
   } catch { /* cancel */ }
+}
+
+// ===== 重置密码 =====
+const showResetPwdDialog = ref(false)
+const resetPwdTarget = ref(null)
+const resetPwdFormRef = ref(null)
+const resettingPwd = ref(false)
+const resetPwdForm = reactive({ password: '' })
+const resetPwdRules = {
+  password: [{ required: true, message: '请输入新密码', trigger: 'blur' }]
+}
+
+function generateResetPwd() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_'
+  const length = 8 + Math.floor(Math.random() * 5)
+  let pwd = ''
+  pwd += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]
+  pwd += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]
+  pwd += '0123456789'[Math.floor(Math.random() * 10)]
+  pwd += '_'
+  for (let i = 4; i < length; i++) {
+    pwd += chars[Math.floor(Math.random() * chars.length)]
+  }
+  resetPwdForm.password = pwd.split('').sort(() => Math.random() - 0.5).join('')
+}
+
+function openResetPwdDialog(row) {
+  resetPwdTarget.value = row
+  resetPwdForm.password = ''
+  showResetPwdDialog.value = true
+}
+
+async function handleResetPwd() {
+  const valid = await resetPwdFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+  resettingPwd.value = true
+  try {
+    await adminUpdateTeacher(resetPwdTarget.value.id, { password: resetPwdForm.password })
+    ElMessage.success('密码已重置，通知邮件已发送')
+    showResetPwdDialog.value = false
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || '重置失败')
+  } finally { resettingPwd.value = false }
+}
+
+function resetPwdDialog() {
+  resetPwdTarget.value = null
+  resetPwdForm.password = ''
+  resettingPwd.value = false
 }
 
 function resetAddForm() {
