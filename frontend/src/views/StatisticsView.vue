@@ -41,7 +41,7 @@
     <!-- 搜索筛选 -->
     <div class="stats-search">
       <el-form :inline="true" size="small" @submit.prevent="doSearch">
-        <el-form-item label="日期范围">
+        <el-form-item label="日期范围" style="margin-bottom: 10px;">
           <el-date-picker
             v-model="searchDateRange"
             type="daterange"
@@ -54,23 +54,29 @@
             @change="period = ''"
           />
         </el-form-item>
-        <el-form-item label="学生姓名">
+        <el-form-item label="学生" style="margin-bottom: 10px;">
           <el-input v-model="searchForm.student_name" placeholder="模糊搜索" clearable style="width: 130px;" />
         </el-form-item>
-        <el-form-item label="年级">
+        <el-form-item label="年级" style="margin-bottom: 10px;">
           <el-select v-model="searchForm.grade" placeholder="全部" clearable style="width: 130px;">
             <el-option label="全部" value="" />
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="签到">
+        <el-form-item label="教师" style="margin-bottom: 10px;">
+          <el-select v-model="searchForm.teacher_id" placeholder="全部教师" clearable style="width: 130px;">
+            <el-option label="全部教师" value="" />
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="签到" style="margin-bottom: 10px;">
           <el-select v-model="searchForm.attended" placeholder="全部" clearable style="width: 100px;">
             <el-option label="全部" value="" />
             <el-option label="已到课" :value="1" />
             <el-option label="未到课" :value="0" />
           </el-select>
         </el-form-item>
-        <el-form-item style="margin-top: 10px;">
+        <el-form-item style="margin-bottom: 10px;">
           <el-button type="primary" @click="doSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
           <el-button @click="exportCSV">📥 导出CSV</el-button>
@@ -134,7 +140,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { searchCourses, getStatistics } from '../api/index.js'
+import { searchCourses, getStatistics, getTeachers } from '../api/index.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -145,7 +151,17 @@ const gradeOptions = [
 
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
-const isAdmin = teacherInfo.id === 1
+const teacherRole = teacherInfo.role || 'teacher'
+const showTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
+const teacherOptions = ref([])
+
+async function loadTeacherOptions() {
+  if (!showTeacherFilter) return
+  try {
+    const res = await getTeachers()
+    teacherOptions.value = res.data.data || []
+  } catch {}
+}
 
 // ===== 统计周期（只填充日期范围，不直接调接口） =====
 const period = ref('month')
@@ -179,7 +195,8 @@ const searchDateRange = ref(getPeriodRange('month'))
 const searchForm = reactive({
   student_name: '',
   grade: '',
-  attended: ''
+  attended: '',
+  teacher_id: ''
 })
 const searchResult = reactive({ data: [], total: 0 })
 const searchPage = ref(1)
@@ -201,6 +218,7 @@ async function doSearch() {
   if (searchForm.attended !== '' && searchForm.attended !== null) {
     params.attended = String(searchForm.attended)
   }
+  if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
 
   // 加载统计
   if (range) {
@@ -210,6 +228,7 @@ async function doSearch() {
         start_date: range[0],
         end_date: range[1]
       }
+      if (searchForm.teacher_id) statsParams.teacher_id = searchForm.teacher_id
       const res = await getStatistics(statsParams)
       statsData.data = res.data.data || []
       statsData.totals = res.data.totals || {}
@@ -260,6 +279,7 @@ async function loadSearchOnly() {
     if (searchForm.attended !== '' && searchForm.attended !== null) {
       params.attended = String(searchForm.attended)
     }
+    if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
     const res = await searchCourses(params)
     searchResult.data = res.data.data || []
     searchResult.total = res.data.total || 0
@@ -274,6 +294,7 @@ function resetSearch() {
   searchForm.student_name = ''
   searchForm.grade = ''
   searchForm.attended = ''
+  searchForm.teacher_id = ''
   period.value = 'month'
   doSearch()
 }
@@ -340,6 +361,7 @@ function calcDuration(start, end) {
 
 onMounted(() => {
   searchDateRange.value = getPeriodRange('month')
+  loadTeacherOptions()
   doSearch()
 })
 

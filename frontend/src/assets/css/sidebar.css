@@ -37,6 +37,7 @@
   background: rgba(255,255,255,0.1) !important;
 }
 .menu-icon { font-size: 16px; }
+.sidebar-menu .el-menu-item .el-icon { font-size: 18px; color: rgba(255,255,255,0.7); }
 .el-menu--collapse .el-menu-item { justify-content: center; }
 .sidebar-bottom {
   padding: 12px 8px;

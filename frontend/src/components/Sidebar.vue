@@ -15,11 +15,11 @@
       @select="handleSelect"
     >
       <el-menu-item v-for="item in navItems" :key="item.path" :index="item.path">
-        <span class="menu-icon">{{ item.icon }}</span>
+        <el-icon><component :is="item.icon" /></el-icon>
         <template #title>{{ item.label }}</template>
       </el-menu-item>
       <el-menu-item index="logout">
-        <span class="menu-icon">🚪</span>
+        <el-icon><SwitchButton /></el-icon>
         <template #title>退出</template>
       </el-menu-item>
     </el-menu>
