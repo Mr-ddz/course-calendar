@@ -1229,16 +1229,24 @@ app.get('/api/admin/teachers', (req, res) => {
   try {
     if (!isSuperAdmin(req.teacher) && getRole(req.teacher) !== 'manager') return res.status(403).json({ error: '无权访问' });
     const { role } = req.query;
+    const inactiveSql = `,
+      CASE WHEN (
+        (s.last_login_at IS NULL OR s.last_login_at < date('now', '-3 months'))
+        AND (
+          SELECT COALESCE(MAX(c.updated_at), '1970-01-01') FROM courses c WHERE c.teacher_id = s.id
+        ) < date('now', '-3 months')
+      ) AND s.status = 'active' AND s.id != 1
+      THEN 1 ELSE 0 END as _inactive`;
     let teachers;
     if (isSuperAdmin(req.teacher)) {
       if (role) {
-        teachers = db.prepare(`SELECT id, name, username, email, source, status, role, created_at FROM teachers WHERE role = ? ORDER BY id`).all(role);
+        teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.role = ? ORDER BY s.id`).all(role);
       } else {
-        teachers = db.prepare(`SELECT id, name, username, email, source, status, role, created_at FROM teachers ORDER BY id`).all();
+        teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s ORDER BY s.id`).all();
       }
     } else {
       // manager 只能看见自己名下的教师
-      teachers = db.prepare(`SELECT id, name, username, email, source, status, role, created_at FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
+      teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.managed_by = ? ORDER BY s.id`).all(req.teacher.id);
     }
     res.json({ data: teachers });
   } catch (err) {
@@ -1333,13 +1341,14 @@ app.put('/api/admin/teachers/:id', (req, res) => {
     const { status, name, password } = req.body;
     const updates = [];
     const params = [];
+    const isResetPwd = !!password; // 记录是否在重置密码
     if (status) { updates.push('status = ?'); params.push(status); }
     if (name) { updates.push('name = ?'); params.push(name); }
     if (password) { updates.push('password = ?'); params.push(crypto.createHash('sha256').update(password).digest('hex')); }
     if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(id);
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status, role FROM teachers WHERE id = ?`).get(id);
 
     // 审核通过时发送邮件通知
     if (status === 'active' && teacher.email && teacher.source === 'email' && transporter) {
@@ -1359,6 +1368,31 @@ app.put('/api/admin/teachers/:id', (req, res) => {
           <p style="color:#999;font-size:12px;">登录地址：${loginUrl}</p>
         </div>`
       }).catch(e => console.error('发送审核通知邮件失败:', e));
+    }
+
+    // 重置密码时发送邮件通知
+    if (isResetPwd && teacher.email && transporter) {
+      const loginUrl = `${SITE_URL}/login`;
+      transporter.sendMail({
+        from: SMTP_FROM,
+        to: teacher.email,
+        subject: '课表侠 - 密码已重置',
+        html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+          <h2 style="color:#667eea;">课表侠</h2>
+          <p>尊敬的 <strong>${teacher.name}</strong>：</p>
+          <p>您的课表侠密码已被管理员重置。</p>
+          <p>请使用以下信息登录：</p>
+          <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0;">
+            <p>🔗 网址：<a href="${loginUrl}" style="color:#667eea;">${loginUrl}</a></p>
+            <p>👤 账户：<strong>${teacher.email}</strong></p>
+            <p>🔑 新密码：<strong>${password}</strong></p>
+          </div>
+          <p>登录后建议立即修改密码。</p>
+          <p style="color:#999;font-size:12px;margin-top:24px;">课表侠团队</p>
+        </div>`
+      }).then(() => {
+        console.log(`📧 已发送密码重置邮件到 ${teacher.email}`);
+      }).catch(e => console.error('发送密码重置邮件失败:', e));
     }
 
     res.json({ data: teacher });
