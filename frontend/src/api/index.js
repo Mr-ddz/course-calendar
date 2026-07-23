@@ -127,8 +127,8 @@ export function resetPassword(token, password) {
 export function register(data) {
   return api.post('/register', data)
 }
-export function adminGetTeachers() {
-  return api.get('/admin/teachers')
+export function adminGetTeachers(params) {
+  return api.get('/admin/teachers', { params })
 }
 export function adminAddTeacher(data) {
   return api.post('/admin/teachers', data)
@@ -149,6 +149,9 @@ export function createStudent(data) {
 }
 export function updateStudent(id, data) {
   return api.put(`/students/${id}`, data)
+}
+export function getTeachers(params) {
+  return api.get('/teachers', { params })
 }
 export function getStudentRecentFee(id) {
   return api.get('/students/recent-fee', { params: { id } })
