@@ -150,6 +150,9 @@ export function createStudent(data) {
 export function updateStudent(id, data) {
   return api.put(`/students/${id}`, data)
 }
+export function deleteStudent(id) {
+  return api.delete(`/students/${id}`)
+}
 export function getTeachers(params) {
   return api.get('/teachers', { params })
 }

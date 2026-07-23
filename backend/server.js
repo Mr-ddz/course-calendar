@@ -358,6 +358,33 @@ app.put('/api/students/:id', (req, res) => {
   }
 });
 
+// 删除学生及其所有课程和流水
+app.delete('/api/students/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    let student;
+    student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    if (student) {
+      const stuA = accessibleClause(req.teacher, 's');
+      const ok = db.prepare(`SELECT 1 as ok FROM students s WHERE s.id = ? AND ${stuA.sql}`).get(id, ...stuA.params);
+      if (!ok) student = null;
+    }
+    if (!student) return res.status(404).json({ error: '学生不存在或无权操作' });
+
+    // 删除该学生所有课程
+    db.prepare(`DELETE FROM courses WHERE student_id = ?`).run(id);
+    // 删除该学生所有预交流水
+    db.prepare(`DELETE FROM prepaid_transactions WHERE student_id = ?`).run(id);
+    // 删除学生
+    db.prepare(`DELETE FROM students WHERE id = ?`).run(id);
+
+    res.json({ message: `已删除学生「${student.name}」及其所有课程数据` });
+  } catch (err) {
+    console.error('删除学生失败:', err);
+    res.status(500).json({ error: '删除学生失败' });
+  }
+});
+
 // 学生充值（含自动补扣）
 app.post('/api/students/:id/recharge', (req, res) => {
   try {
@@ -1463,7 +1490,14 @@ app.get('*', (_req, res) => {
 
 // ========== 启动 ==========
 preloadHolidays();
-preloadHolidays();
+// 启动前检查数据库字段完整性（防止部署后忘记重启）
+try {
+  db.prepare(`SELECT role FROM teachers LIMIT 1`).get();
+} catch (e) {
+  console.error('❌ 数据库缺少 role 字段，迁移未执行。请执行:');
+  console.error('   sqlite3 backend/data/schedule.db "ALTER TABLE teachers ADD COLUMN role TEXT DEFAULT \'teacher\'"');
+  process.exit(1);
+}
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`📚 课程表已启动: http://localhost:${PORT}`);
 });
