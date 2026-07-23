@@ -115,6 +115,11 @@
             </template>
           </el-autocomplete>
         </el-form-item>
+        <el-form-item v-if="canSelectTeacher" label="教师" label-for="course_teacher">
+          <el-select id="course_teacher" v-model="courseForm.teacher_id" placeholder="选择教师" style="width:100%">
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="日期" label-for="course_date">
           <el-date-picker
             id="course_date"
@@ -250,6 +255,17 @@ const route = useRoute()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 const isAdmin = computed(() => teacherInfo.id === 1)
+const teacherRole = teacherInfo.role || 'teacher'
+const canSelectTeacher = teacherRole === 'super_admin' || teacherRole === 'manager'
+const teacherOptions = ref([])
+
+async function loadTeachersForCourse() {
+  if (!canSelectTeacher) return
+  try {
+    const res = await getTeachers()
+    teacherOptions.value = res.data.data || []
+  } catch {}
+}
 
 // 处理课程显示：admin 遇到多教师时间重叠时，按老师分列
 const displayCourses = computed(() => {
@@ -403,7 +419,8 @@ function getDefaultForm() {
     hourly_fee: '',
     attended: false,
     repeat_type: 'none',
-    end_date: ''
+    end_date: '',
+    teacher_id: ''
   }
 }
 
@@ -540,7 +557,8 @@ function editCourse(course) {
     hourly_fee: course.hourly_fee || '',
     attended: !!course.attended,
     repeat_type: course.repeat_type || 'none',
-    end_date: course.end_date || ''
+    end_date: course.end_date || '',
+    teacher_id: course.teacher_id ? String(course.teacher_id) : ''
   }
   dialogVisible.value = true
 }
@@ -609,7 +627,8 @@ async function saveCourse() {
       hourly_fee: courseForm.value.hourly_fee ? parseFloat(courseForm.value.hourly_fee) : 0,
       attended: courseForm.value.attended,
       repeat_type: courseForm.value.repeat_type || 'none',
-      end_date: courseForm.value.end_date || undefined
+      end_date: courseForm.value.end_date || undefined,
+      teacher_id: courseForm.value.teacher_id || undefined
     }
     if (isEditing.value) {
       if (editingUpdateAllFuture.value) {
@@ -723,6 +742,7 @@ watch(() => route.params.date, (newDate) => {
 onMounted(() => {
   dateStr.value = route.params.date || dayjs().format('YYYY-MM-DD')
   loadCourses()
+  loadTeachersForCourse()
   nextTick(() => scrollToSuitable())
 })
 </script>

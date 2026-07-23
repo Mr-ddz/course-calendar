@@ -43,7 +43,7 @@ function authMiddleware(req, res, next) {
   }
 
   const token = authHeader.slice(7);
-  const teacher = db.prepare(`SELECT id, name, username, token_expires_at FROM teachers WHERE token = ?`).get(token);
+  const teacher = db.prepare(`SELECT id, name, username, role, token_expires_at FROM teachers WHERE token = ?`).get(token);
 
   if (!teacher) {
     return res.status(401).json({ error: '登录已过期，请重新登录' });
@@ -70,7 +70,7 @@ app.post('/api/refresh', (req, res) => {
       return res.status(400).json({ error: '缺少 refresh_token' });
     }
 
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status, refresh_token_expires_at FROM teachers WHERE refresh_token = ?`).get(refresh_token);
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status, role, refresh_token_expires_at FROM teachers WHERE refresh_token = ?`).get(refresh_token);
 
     if (!teacher) {
       return res.status(401).json({ error: 'refresh_token 无效' });
@@ -91,7 +91,7 @@ app.post('/api/refresh', (req, res) => {
       data: {
         token: newToken,
         refresh_token: refresh_token,
-        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active' }
+        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active', role: teacher.role || 'teacher' }
       }
     });
   } catch (err) {
@@ -156,7 +156,7 @@ app.post('/api/login', (req, res) => {
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const teacher = db.prepare(
-      `SELECT id, name, username, email, source, status FROM teachers WHERE (username = ? OR email = ?) AND password = ? AND status = 'active'`
+      `SELECT id, name, username, email, source, status, role FROM teachers WHERE (username = ? OR email = ?) AND password = ? AND status = 'active'`
     ).get(username, username, hash);
 
     if (!teacher) {
@@ -175,7 +175,7 @@ app.post('/api/login', (req, res) => {
       data: {
         token,
         refresh_token: refreshToken,
-        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active' }
+        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active', role: teacher.role || 'teacher' }
       }
     });
   } catch (err) {
@@ -205,8 +205,20 @@ app.get('/api/me', (req, res) => {
 
 // GET /api/teachers — 获取所有教师列表
 app.get('/api/teachers', (req, res) => {
-  const teachers = db.prepare(`SELECT id, name, username FROM teachers ORDER BY id`).all();
-  res.json({ data: teachers });
+  try {
+    let teachers;
+    if (isSuperAdmin(req.teacher)) {
+      teachers = db.prepare(`SELECT id, name, username, role FROM teachers WHERE role != 'super_admin' ORDER BY id`).all();
+    } else if (getRole(req.teacher) === 'manager') {
+      teachers = db.prepare(`SELECT id, name, username, role FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
+    } else {
+      teachers = [{ id: req.teacher.id, name: req.teacher.name, username: req.teacher.username, role: 'teacher' }];
+    }
+    res.json({ data: teachers });
+  } catch (err) {
+    console.error('获取教师列表失败:', err);
+    res.status(500).json({ error: '获取失败' });
+  }
 });
 
 // ========== 学生管理 ==========
@@ -227,13 +239,10 @@ app.get('/api/students', (req, res) => {
     const conditions = [];
     const params = [];
 
-    if (isAdmin(req.teacher)) {
-      if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
-    } else {
-      conditions.push("s.teacher_id = ?");
-      params.push(req.teacher.id);
-      if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
-    }
+    const stuAccess = accessibleClause(req.teacher, 's');
+    conditions.push(stuAccess.sql);
+    params.push(...stuAccess.params);
+    if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
     const { total } = db.prepare(`${countSql} ${whereClause}`).get(...params);
@@ -271,10 +280,11 @@ app.put('/api/students/:id', (req, res) => {
   try {
     const { id } = req.params;
     let existing;
-    if (isAdmin(req.teacher)) {
-      existing = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
-    } else {
-      existing = db.prepare(`SELECT * FROM students WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    existing = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    if (existing) {
+      const stuA = accessibleClause(req.teacher, 's');
+      const ok = db.prepare(`SELECT 1 as ok FROM students s WHERE s.id = ? AND ${stuA.sql}`).get(id, ...stuA.params);
+      if (!ok) existing = null;
     }
     if (!existing) return res.status(404).json({ error: '学生不存在或无权操作' });
 
@@ -353,10 +363,11 @@ app.post('/api/students/:id/recharge', (req, res) => {
   try {
     const { id } = req.params;
     let student;
-    if (isAdmin(req.teacher)) {
-      student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
-    } else {
-      student = db.prepare(`SELECT * FROM students WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    if (student) {
+      const stuA = accessibleClause(req.teacher, 's');
+      const ok = db.prepare(`SELECT 1 as ok FROM students s WHERE s.id = ? AND ${stuA.sql}`).get(id, ...stuA.params);
+      if (!ok) student = null;
     }
     if (!student) return res.status(404).json({ error: '学生不存在或无权操作' });
 
@@ -431,10 +442,11 @@ app.get('/api/students/:id/transactions', (req, res) => {
   try {
     const { id } = req.params;
     let student;
-    if (isAdmin(req.teacher)) {
-      student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
-    } else {
-      student = db.prepare(`SELECT * FROM students WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    student = db.prepare(`SELECT * FROM students WHERE id = ?`).get(id);
+    if (student) {
+      const stuA = accessibleClause(req.teacher, 's');
+      const ok = db.prepare(`SELECT 1 as ok FROM students s WHERE s.id = ? AND ${stuA.sql}`).get(id, ...stuA.params);
+      if (!ok) student = null;
     }
     if (!student) return res.status(404).json({ error: '学生不存在或无权操作' });
 
@@ -473,6 +485,18 @@ app.get('/api/students/recent-fee', (req, res) => {
 // ========== 课程 CRUD（admin 可以看到全部，普通老师只看自己） ==========
 const ADMIN_ID = 1;
 function isAdmin(user) { return user.id === ADMIN_ID; }
+function getRole(user) { return user.role || 'teacher'; }
+function isSuperAdmin(user) { return getRole(user) === 'super_admin'; }
+function accessibleClause(user, tableAlias) {
+  const t = tableAlias || 'c';
+  if (isAdmin(user) || isSuperAdmin(user)) return { sql: '1=1', params: [] };
+  if (getRole(user) === 'manager') {
+    const ids = db.prepare(`SELECT id FROM teachers WHERE managed_by = ?`).all(user.id).map(r => r.id);
+    if (ids.length === 0) return { sql: '1=0', params: [] };
+    return { sql: `${t}.teacher_id IN (${ids.map(() => '?').join(',')})`, params: ids };
+  }
+  return { sql: `${t}.teacher_id = ?`, params: [user.id] };
+}
 
 // 获取指定日期的课程
 app.get('/api/courses', (req, res) => {
@@ -480,11 +504,15 @@ app.get('/api/courses', (req, res) => {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: '请提供日期参数 date (YYYY-MM-DD)' });
     let courses;
-    if (isAdmin(req.teacher)) {
-      courses = db.prepare(`SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE c.date = ? ORDER BY c.teacher_id, c.start_time ASC`).all(date);
-    } else {
-      courses = db.prepare(`SELECT * FROM courses WHERE teacher_id = ? AND date = ? ORDER BY start_time ASC`).all(req.teacher.id, date);
+    const cAccess = accessibleClause(req.teacher, 'c');
+    let courseSql = `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE ${cAccess.sql} AND c.date = ?`;
+    const courseParams = [...cAccess.params, date];
+    if (req.query.teacher_id) {
+      courseSql += ' AND c.teacher_id = ?';
+      courseParams.push(req.query.teacher_id);
     }
+    courseSql += ' ORDER BY c.teacher_id, c.start_time ASC';
+    courses = db.prepare(courseSql).all(...courseParams);
     res.json({ data: courses });
   } catch (err) {
     console.error('获取课程失败:', err);
@@ -500,11 +528,15 @@ app.get('/api/courses/range', (req, res) => {
       return res.status(400).json({ error: '请提供 start_date 和 end_date 参数' });
     }
     let courses;
-    if (isAdmin(req.teacher)) {
-      courses = db.prepare(`SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE c.date BETWEEN ? AND ? ORDER BY c.date ASC, c.start_time ASC`).all(start_date, end_date);
-    } else {
-      courses = db.prepare(`SELECT * FROM courses WHERE teacher_id = ? AND date BETWEEN ? AND ? ORDER BY date ASC, start_time ASC`).all(req.teacher.id, start_date, end_date);
+    const rAccess = accessibleClause(req.teacher, 'c');
+    let rangeSql = `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE ${rAccess.sql} AND c.date BETWEEN ? AND ?`;
+    const rangeParams = [...rAccess.params, start_date, end_date];
+    if (req.query.teacher_id) {
+      rangeSql += ' AND c.teacher_id = ?';
+      rangeParams.push(req.query.teacher_id);
     }
+    rangeSql += ' ORDER BY c.date ASC, c.start_time ASC';
+    courses = db.prepare(rangeSql).all(...rangeParams);
     res.json({ data: courses });
   } catch (err) {
     console.error('获取课程范围失败:', err);
@@ -543,6 +575,8 @@ function isWorkdayOrHoliday(dateStr) {
 }
 
 // ===== 辅助函数：生成未来每周重复课程 =====
+
+
 const MAX_WEEKS = 52;
 function generateWeeklyCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description, endDateStr) {
   const { student_name, grade, hourly_fee, attended, student_id } = courseData;
@@ -610,10 +644,53 @@ function generateWeekdaysCourses(teacherId, courseData, firstInsertId, startDate
   return created;
 }
 
+
+// ===== 辅助函数：生成每周工作日重复课程 =====
+function generateWeekdaysCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description, endDateStr) {
+  const { student_name, grade, hourly_fee, attended, student_id } = courseData;
+  const insertStmt = db.prepare(
+    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id, end_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'weekdays', ?, ?)`
+  );
+
+  const startDate = new Date(startDateStr);
+  const maxDate = endDateStr ? new Date(endDateStr) : new Date(startDate);
+  if (!endDateStr) maxDate.setDate(maxDate.getDate() + MAX_WEEKS * 7);
+
+  const created = [{ id: firstInsertId, date: startDateStr }];
+  let current = new Date(startDate);
+  let count = 0;
+  const MAX_COURSES = 365;
+
+  while (count < MAX_COURSES) {
+    current.setDate(current.getDate() + 1);
+    const dateStr = current.toISOString().split('T')[0];
+    const dow = current.getDay();
+    if (current > maxDate) break;
+
+    let shouldCreate = false;
+    if (dow >= 1 && dow <= 5) shouldCreate = true;
+
+    const hd = isWorkdayOrHoliday(dateStr);
+    if (hd === 'holiday') shouldCreate = false;
+    if (hd === 'workday') shouldCreate = true;
+
+    if (shouldCreate) {
+      const result = insertStmt.run(teacherId, student_id || null, student_name, dateStr, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, firstInsertId, endDateStr || null);
+      created.push({ id: result.lastInsertRowid, date: dateStr });
+      count++;
+    }
+  }
+  if (count >= MAX_COURSES) {
+    console.log(`⚠️ 工作日课程已超过上限 ${MAX_COURSES} 节，请检查截止日期`);
+  }
+  return created;
+}
+
 // 创建新课
 app.post('/api/courses', (req, res) => {
   try {
-    let { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type } = req.body;
+    let { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, teacher_id } = req.body;
     if (!student_name || !date || !start_time || !end_time) {
       return res.status(400).json({ error: '请填写必要字段: student_name, date, start_time, end_time' });
     }
@@ -648,11 +725,20 @@ app.post('/api/courses', (req, res) => {
       }
     }
 
+    // super_admin/manager 可以为其他教师创建课程
+    let finalTeacherId = req.teacher.id;
+    if (teacher_id && isSuperAdmin(req.teacher)) {
+      finalTeacherId = parseInt(teacher_id);
+    } else if (teacher_id && getRole(req.teacher) === 'manager') {
+      const ok = db.prepare(`SELECT id FROM teachers WHERE id = ? AND managed_by = ?`).get(teacher_id, req.teacher.id);
+      if (ok) finalTeacherId = parseInt(teacher_id);
+    }
+
     // 先插入第一节课
     const result = db.prepare(
       `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(req.teacher.id, student_id, student_name, date, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, repeat_type || 'none');
+    ).run(finalTeacherId, student_id, student_name, date, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, repeat_type || 'none');
 
     const courseId = result.lastInsertRowid;
 
@@ -661,9 +747,9 @@ app.post('/api/courses', (req, res) => {
       db.prepare(`UPDATE courses SET repeat_group_id = ? WHERE id = ?`).run(courseId, courseId);
       const courseData = { student_name, grade, hourly_fee, attended, student_id };
       if (repeat_type === 'weekdays') {
-        generateWeekdaysCourses(req.teacher.id, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
+        generateWeekdaysCourses(finalTeacherId, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
       } else {
-        generateWeeklyCourses(req.teacher.id, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
+        generateWeeklyCourses(finalTeacherId, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
       }
     }
 
@@ -680,10 +766,11 @@ app.put('/api/courses/:id', (req, res) => {
   try {
     const { id } = req.params;
     let existing;
-    if (isAdmin(req.teacher)) {
-      existing = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
-    } else {
-      existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    existing = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
+    if (existing) {
+      const cA = accessibleClause(req.teacher, 'c');
+      const ok = db.prepare(`SELECT 1 as ok FROM courses c WHERE c.id = ? AND ${cA.sql}`).get(id, ...cA.params);
+      if (!ok) existing = null;
     }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
 
@@ -777,9 +864,9 @@ app.put('/api/courses/:id', (req, res) => {
           student_id: targetStudentId || existing.student_id
         };
         if (repeat_type === 'weekdays') {
-          generateWeekdaysCourses(req.teacher.id, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
+          generateWeekdaysCourses(finalTeacherId, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
         } else {
-          generateWeeklyCourses(req.teacher.id, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
+          generateWeeklyCourses(finalTeacherId, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
         }
 
         const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? ORDER BY date ASC`).all(groupId);
@@ -911,10 +998,11 @@ app.delete('/api/courses/:id', (req, res) => {
   try {
     const { id } = req.params;
     let existing;
-    if (isAdmin(req.teacher)) {
-      existing = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
-    } else {
-      existing = db.prepare(`SELECT * FROM courses WHERE id = ? AND teacher_id = ?`).get(id, req.teacher.id);
+    existing = db.prepare(`SELECT * FROM courses WHERE id = ?`).get(id);
+    if (existing) {
+      const cA = accessibleClause(req.teacher, 'c');
+      const ok = db.prepare(`SELECT 1 as ok FROM courses c WHERE c.id = ? AND ${cA.sql}`).get(id, ...cA.params);
+      if (!ok) existing = null;
     }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
 
@@ -939,15 +1027,14 @@ app.delete('/api/courses/:id', (req, res) => {
 // 搜索课程（模糊搜索 + 分页）
 app.get('/api/courses/search', (req, res) => {
   try {
-    const { student_name, grade, attended, page = 1, page_size = 20, start_date, end_date } = req.query;
+    const { student_name, grade, attended, page = 1, page_size = 20, start_date, end_date, teacher_id } = req.query;
     const conditions = [];
     const params = [];
 
     // 数据隔离
-    if (!isAdmin(req.teacher)) {
-      conditions.push('c.teacher_id = ?');
-      params.push(req.teacher.id);
-    }
+    const searchAccess = accessibleClause(req.teacher, 'c');
+    conditions.push(searchAccess.sql);
+    params.push(...searchAccess.params);
 
     if (student_name) {
       conditions.push('c.student_name LIKE ?');
@@ -969,6 +1056,10 @@ app.get('/api/courses/search', (req, res) => {
       conditions.push('c.date <= ?');
       params.push(end_date);
     }
+    if (teacher_id) {
+      conditions.push('c.teacher_id = ?');
+      params.push(teacher_id);
+    }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -978,9 +1069,7 @@ app.get('/api/courses/search', (req, res) => {
 
     // 分页查询
     const offset = (parseInt(page) - 1) * parseInt(page_size);
-    const selectSql = isAdmin(req.teacher)
-      ? `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${whereClause} ORDER BY c.date DESC, c.start_time ASC LIMIT ? OFFSET ?`
-      : `SELECT c.* FROM courses c ${whereClause} ORDER BY c.date DESC, c.start_time ASC LIMIT ? OFFSET ?`;
+    const selectSql = `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${whereClause} ORDER BY c.date DESC, c.start_time ASC LIMIT ? OFFSET ?`;
 
     const data = db.prepare(selectSql).all(...params, parseInt(page_size), offset);
 
@@ -994,13 +1083,14 @@ app.get('/api/courses/search', (req, res) => {
 // 统计数据（按周/月/年）
 app.get('/api/courses/statistics', (req, res) => {
   try {
-    const { group_by = 'month', start_date, end_date } = req.query;
+    const { group_by = 'month', start_date, end_date, teacher_id } = req.query;
 
     let teacherCondition = '';
     const params = [];
-    if (!isAdmin(req.teacher)) {
-      teacherCondition = 'AND c.teacher_id = ?';
-      params.push(req.teacher.id);
+    const statAccess = accessibleClause(req.teacher, 'c');
+    if (statAccess.sql !== '1=1') {
+      teacherCondition = 'AND ' + statAccess.sql;
+      params.push(...statAccess.params);
     }
 
     const dateFilter = [];
@@ -1065,7 +1155,7 @@ app.get('/api/courses/statistics', (req, res) => {
 // POST /api/register — 邮箱注册（管理员审核后生效）
 app.post('/api/register', (req, res) => {
   try {
-    const { name, email, password, confirm_password } = req.body;
+    const { name, email, password, confirm_password, role } = req.body;
     if (!name || !email || !password || !confirm_password) {
       return res.status(400).json({ error: '请填写所有必填字段' });
     }
@@ -1095,8 +1185,8 @@ app.post('/api/register', (req, res) => {
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     db.prepare(
-      `INSERT INTO teachers (name, username, password, email, source, status) VALUES (?, ?, ?, ?, 'email', 'pending')`
-    ).run(name, name, hash, email);
+      `INSERT INTO teachers (name, username, password, email, source, status, role) VALUES (?, ?, ?, ?, 'email', 'pending', ?)`
+    ).run(name, name, hash, email, role === 'manager' ? 'manager' : 'teacher');
 
     res.json({ message: '注册成功，请等待管理员审核' });
   } catch (err) {
@@ -1122,8 +1212,10 @@ app.get('/api/admin/teachers', (req, res) => {
 // Admin 手动添加教师
 app.post('/api/admin/teachers', (req, res) => {
   try {
-    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
-    const { name, username, password } = req.body;
+    const isManagerUser = getRole(req.teacher) === 'manager';
+    if (!isSuperAdmin(req.teacher) && !isManagerUser) return res.status(403).json({ error: '无权访问' });
+    let { name, username, password, role } = req.body;
+    if (isManagerUser) role = 'teacher';
     if (!name || !username || !password) {
       return res.status(400).json({ error: '请填写姓名、用户名和密码' });
     }
@@ -1131,10 +1223,11 @@ app.post('/api/admin/teachers', (req, res) => {
     if (existing) return res.status(400).json({ error: '用户名已存在' });
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const finalRole = role || 'teacher';
     const result = db.prepare(
-      `INSERT INTO teachers (name, username, password, source, status) VALUES (?, ?, ?, 'admin', 'active')`
-    ).run(name, username, hash);
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
+      `INSERT INTO teachers (name, username, password, source, status, role, managed_by) VALUES (?, ?, ?, 'admin', 'active', ?, ?)`
+    ).run(name, username, hash, finalRole, req.teacher.id);
+    const teacher = db.prepare(`SELECT id, name, username, email, source, status, role FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
     res.status(201).json({ data: teacher });
   } catch (err) {
     console.error('添加教师失败:', err);
@@ -1145,9 +1238,14 @@ app.post('/api/admin/teachers', (req, res) => {
 // 更新教师状态（禁用/启用）
 app.put('/api/admin/teachers/:id', (req, res) => {
   try {
-    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
+    const isManagerUser = getRole(req.teacher) === 'manager';
+    if (!isSuperAdmin(req.teacher) && !isManagerUser) return res.status(403).json({ error: '无权访问' });
     const { id } = req.params;
-    if (parseInt(id) === ADMIN_ID) return res.status(400).json({ error: '不能禁用管理员账号' });
+    if (parseInt(id) === ADMIN_ID) return res.status(400).json({ error: '不能操作超级管理员账号' });
+    if (isManagerUser) {
+      const target = db.prepare(`SELECT id, managed_by FROM teachers WHERE id = ?`).get(id);
+      if (!target || target.managed_by !== req.teacher.id) return res.status(403).json({ error: '无权操作该教师' });
+    }
     const { status, name, password } = req.body;
     const updates = [];
     const params = [];
@@ -1189,9 +1287,14 @@ app.put('/api/admin/teachers/:id', (req, res) => {
 // 删除教师及其所有数据
 app.delete('/api/admin/teachers/:id', (req, res) => {
   try {
-    if (!isAdmin(req.teacher)) return res.status(403).json({ error: '无权访问' });
+    const isManagerUser = getRole(req.teacher) === 'manager';
+    if (!isSuperAdmin(req.teacher) && !isManagerUser) return res.status(403).json({ error: '无权访问' });
     const { id } = req.params;
-    if (parseInt(id) === ADMIN_ID) return res.status(400).json({ error: '不能删除管理员账号' });
+    if (parseInt(id) === ADMIN_ID) return res.status(400).json({ error: '不能删除超级管理员账号' });
+    if (isManagerUser) {
+      const target = db.prepare(`SELECT id, managed_by FROM teachers WHERE id = ?`).get(id);
+      if (!target || target.managed_by !== req.teacher.id) return res.status(403).json({ error: '无权操作该教师' });
+    }
 
     const teacher = db.prepare(`SELECT id, name FROM teachers WHERE id = ?`).get(id);
     if (!teacher) return res.status(404).json({ error: '教师不存在' });
@@ -1302,6 +1405,7 @@ app.get('*', (_req, res) => {
 });
 
 // ========== 启动 ==========
+preloadHolidays();
 preloadHolidays();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`📚 课程表已启动: http://localhost:${PORT}`);

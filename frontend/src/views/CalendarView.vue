@@ -9,6 +9,10 @@
         <span class="cal-month-title">{{ monthLabel }}</span>
         <el-button @click="changeMonth(1)">下月 &gt;</el-button>
         <el-button size="small" style="margin-left:12px" @click="backToToday">今天</el-button>
+        <el-select v-if="showTeacherFilter" v-model="selectedTeacherId" size="small" style="margin-left:12px;width:140px" placeholder="全部教师" clearable @change="loadMonthCourses">
+          <el-option label="全部教师" value="" />
+          <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+        </el-select>
       </div>
       <div class="cal-grid">
         <div class="cal-weekdays">
@@ -93,7 +97,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { getHoliday, loadHolidays } from '../assets/js/holidays.js'
-import { getCoursesRange } from '../api/index.js'
+import { getTeachers } from '../api/index.js'
+import api from '../api/index.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -109,9 +114,22 @@ const monthCourses = ref([])
 const hideStudentName = ref(false)
 const holidayVersion = ref(0)
 
-// 获取当前教师信息
+// 当前教师
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
+const teacherRole = teacherInfo.role || 'teacher'
+const showTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
+const selectedTeacherId = ref('')
+const teacherOptions = ref([])
+
+// 加载教师列表（用于筛选）
+async function loadTeachers() {
+  if (!showTeacherFilter) return
+  try {
+    const res = await getTeachers()
+    teacherOptions.value = res.data.data || []
+  } catch {}
+}
 
 const monthLabel = computed(() => dayjs(currentMonth.value).format('YYYY 年 M 月'))
 
@@ -239,7 +257,9 @@ async function loadMonthCourses() {
   const start = m.startOf('month').format('YYYY-MM-DD')
   const end = m.endOf('month').format('YYYY-MM-DD')
   try {
-    const res = await getCoursesRange(start, end)
+    const params = { start_date: start, end_date: end }
+    if (selectedTeacherId.value) params.teacher_id = selectedTeacherId.value
+    const res = await api.get('/courses/range', { params })
     monthCourses.value = res.data.data || []
   } catch (err) {
     console.error('加载月历数据失败:', err)
@@ -262,6 +282,7 @@ watch(() => route.query.month, () => {
 
 onMounted(() => {
   restoreMonthFromQuery()
+  loadTeachers()
   loadMonthCourses()
   loadHolidays(dayjs().year()).then(() => { holidayVersion.value++ })
 })
