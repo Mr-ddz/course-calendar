@@ -30,6 +30,11 @@
             <el-tag v-else type="info" size="small">教师</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="申请时间" width="160">
+          <template #default="{ row }">
+            {{ row.created_at || '—' }}
+          </template>
+        </el-table-column>
         <el-table-column label="来源" width="100">
           <template #default="{ row }">
             <el-tag :type="row.source === 'admin' ? 'info' : 'warning'" size="small">
