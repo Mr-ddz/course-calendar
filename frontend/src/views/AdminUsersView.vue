@@ -6,7 +6,7 @@
       </div>
       <div class="admin-toolbar">
         <div class="admin-toolbar-left">
-          <span class="admin-count">共 {{ teachers.length }} 位用户</span>
+          <span class="admin-count">共 {{ total }} 位用户</span>
         </div>
         <el-button type="primary" size="small" @click="openAddDialog">+ {{ isSuperAdmin ? '添加用户' : '添加教师' }}</el-button>
       </div>
@@ -64,6 +64,19 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="admin-pagination">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next"
+          size="small"
+          background
+          @size-change="onPageSizeChange"
+          @current-change="onPageChange"
+        />
+      </div>
     </div>
 
     <!-- 添加用户对话框 -->
@@ -154,6 +167,9 @@ const isSuperAdmin = teacherInfo.role === 'super_admin'
 
 const teachers = ref([])
 const loading = ref(false)
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(20)
 const showAddDialog = ref(false)
 const adding = ref(false)
 const addFormRef = ref(null)
@@ -170,13 +186,17 @@ const addRules = {
 async function loadTeachers() {
   loading.value = true
   try {
-    const res = await adminGetTeachers()
+    const res = await adminGetTeachers({ page: currentPage.value, page_size: pageSize.value })
     teachers.value = res.data.data || []
+    total.value = res.data.total || 0
   } catch (err) {
     if (err.response?.status === 403) router.push('/app/calendar')
     ElMessage.error('加载失败')
   } finally { loading.value = false }
 }
+
+function onPageChange(page) { currentPage.value = page; loadTeachers() }
+function onPageSizeChange() { currentPage.value = 1; loadTeachers() }
 
 async function loadManagerOptions() {
   if (!isSuperAdmin) return
