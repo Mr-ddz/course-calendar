@@ -10,11 +10,11 @@
         size="large"
         @keyup.enter="handleLogin"
       >
-        <el-form-item prop="username">
+        <el-form-item prop="identity">
           <el-input
-            v-model="form.username"
-            placeholder="用户名 / 邮箱"
-            prefix-icon="User"
+            v-model="form.identity"
+            placeholder="邮箱地址"
+            prefix-icon="Message"
           />
         </el-form-item>
         <el-form-item prop="password">
@@ -61,12 +61,12 @@ const formRef = ref(null)
 const loading = ref(false)
 
 const form = reactive({
-  username: '',
+  identity: '',
   password: ''
 })
 
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  identity: [{ required: true, message: '请输入邮箱', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
@@ -77,7 +77,7 @@ async function handleLogin() {
   loading.value = true
 
   try {
-    const res = await login(form.username, form.password)
+    const res = await login(form.identity, form.password)
     const { token, refresh_token, teacher } = res.data.data
 
     localStorage.setItem('token', token)

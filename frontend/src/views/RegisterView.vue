@@ -8,7 +8,7 @@
       <p class="login-subtitle">免费注册，管理员审核后即可使用</p>
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="handleRegister">
         <el-form-item prop="name">
-          <el-input v-model="form.name" placeholder="用户名（用于登录显示）" prefix-icon="User" />
+          <el-input v-model="form.name" placeholder="姓名" prefix-icon="User" />
         </el-form-item>
         <el-form-item prop="email">
           <el-input v-model="form.email" placeholder="邮箱地址" prefix-icon="Message" />

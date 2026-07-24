@@ -112,8 +112,8 @@ api.interceptors.response.use(
 )
 
 // ===== 认证 =====
-export function login(username, password) {
-  return api.post('/login', { username, password })
+export function login(identity, password) {
+  return api.post('/login', { identity, password })
 }
 export function logout() {
   return api.post('/logout')

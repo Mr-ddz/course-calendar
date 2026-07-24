@@ -16,7 +16,6 @@
       <el-table :data="teachers" stripe style="width: 100%" v-loading="loading">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180">
           <template #default="{ row }">
             <span v-if="row.email">{{ row.email }}</span>
@@ -84,9 +83,6 @@
       <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="100px" size="large">
         <el-form-item label="姓名" prop="name">
           <el-input v-model="addForm.name" placeholder="如：张老师" />
-        </el-form-item>
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="addForm.username" placeholder="用于登录" />
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="addForm.email" placeholder="接收登录通知" />
@@ -175,10 +171,9 @@ const adding = ref(false)
 const addFormRef = ref(null)
 const managerOptions = ref([])
 
-const addForm = ref({ name: '', username: '', email: '', password: '', role: 'teacher', managed_by: '' })
+const addForm = ref({ name: '', email: '', password: '', role: 'teacher', managed_by: '' })
 const addRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   email: [{ required: true, type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
@@ -236,7 +231,6 @@ async function handleAddTeacher() {
   try {
     const data = {
       name: addForm.value.name,
-      username: addForm.value.username,
       email: addForm.value.email,
       password: addForm.value.password,
       role: isSuperAdmin ? addForm.value.role : 'teacher'
@@ -373,7 +367,7 @@ async function handleChangeRole() {
 }
 
 function resetAddForm() {
-  addForm.value = { name: '', username: '', email: '', password: '', role: 'teacher', managed_by: '' }
+  addForm.value = { name: '', email: '', password: '', role: 'teacher', managed_by: '' }
 }
 
 onMounted(() => { loadTeachers() })
