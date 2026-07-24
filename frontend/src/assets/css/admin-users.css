@@ -60,10 +60,13 @@
 .btn-disable:hover { color: #fff !important; border-color: #fa8c16; background: #fa8c16; }
 .btn-enable { color: #1890ff; border-color: #91d5ff; background: #e6f7ff; }
 .btn-enable:hover { color: #fff !important; border-color: #1890ff; background: #1890ff; }
+.btn-role { color: #722ed1; border-color: #d3adf7; background: #f9f0ff; }
+.btn-role:hover { color: #fff !important; border-color: #722ed1; background: #722ed1; }
 .btn-resetpwd { color: #8c8c8c; border-color: #d9d9d9; background: #fafafa; }
 .btn-resetpwd:hover { color: #fff !important; border-color: #8c8c8c; background: #8c8c8c; }
 .btn-delete { color: #ff4d4f; border-color: #ffccc7; background: #fff2f0; }
 .btn-delete:hover { color: #fff !important; border-color: #ff4d4f; background: #ff4d4f; }
+.change-role-info { font-size: 14px; color: #606266; line-height: 1.6; }
 .reset-pwd-info {
   font-size: 14px;
   color: #606266;

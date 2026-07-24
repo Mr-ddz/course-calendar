@@ -1255,7 +1255,11 @@ app.get('/api/admin/teachers', (req, res) => {
     const { role } = req.query;
     const inactiveSql = `,
       CASE WHEN (
-        (s.last_login_at IS NULL OR s.last_login_at < date('now', '-3 months'))
+        (
+          (s.last_login_at IS NULL AND s.created_at < date('now', '-30 days'))
+          OR
+          (s.last_login_at IS NOT NULL AND s.last_login_at < date('now', '-3 months'))
+        )
         AND (
           SELECT COALESCE(MAX(c.updated_at), '1970-01-01') FROM courses c WHERE c.teacher_id = s.id
         ) < date('now', '-3 months')
@@ -1362,13 +1366,14 @@ app.put('/api/admin/teachers/:id', (req, res) => {
       const target = db.prepare(`SELECT id, managed_by FROM teachers WHERE id = ?`).get(id);
       if (!target || target.managed_by !== req.teacher.id) return res.status(403).json({ error: '无权操作该教师' });
     }
-    const { status, name, password } = req.body;
+    const { status, name, password, role } = req.body;
     const updates = [];
     const params = [];
     const isResetPwd = !!password; // 记录是否在重置密码
     if (status) { updates.push('status = ?'); params.push(status); }
     if (name) { updates.push('name = ?'); params.push(name); }
     if (password) { updates.push('password = ?'); params.push(crypto.createHash('sha256').update(password).digest('hex')); }
+    if (role) { updates.push('role = ?'); params.push(role); }
     if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
