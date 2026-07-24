@@ -208,14 +208,30 @@ app.get('/api/teachers', (req, res) => {
   try {
     let teachers;
     if (isSuperAdmin(req.teacher)) {
-      teachers = db.prepare(`SELECT id, name, username, role FROM teachers WHERE role != 'super_admin' ORDER BY id`).all();
-    } else if (getRole(req.teacher) === 'manager') {
-      teachers = db.prepare(`SELECT id, name, username, role FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
+      const countSql = `SELECT COUNT(*) as total FROM teachers s`;
+      const whereClause = role ? ` WHERE s.role = '` + role + `'` : '';
+      const { total } = db.prepare(`${countSql} ${whereClause}`).get();
+      const baseSql = `SELECT s.*${inactiveSql} FROM teachers s`;
+      const orderSql = ` ORDER BY s.id LIMIT ? OFFSET ?`;
+      const page = parseInt(req.query.page) || 1;
+      const pageSize = parseInt(req.query.page_size) || 20;
+      const offset = (page - 1) * pageSize;
+      if (role) {
+        teachers = db.prepare(`${baseSql} ${whereClause} ${orderSql}`).all(role, pageSize, offset);
+      } else {
+        teachers = db.prepare(`${baseSql} ${whereClause} ${orderSql}`).all(pageSize, offset);
+      }
+      res.json({ data: teachers, total, page, page_size: pageSize });
     } else {
-      teachers = [{ id: req.teacher.id, name: req.teacher.name, username: req.teacher.username, role: 'teacher' }];
-    }
-    res.json({ data: teachers });
-  } catch (err) {
+      // manager 只能看见自己名下的教师
+      const countSql = `SELECT COUNT(*) as total FROM teachers s WHERE s.managed_by = ?`;
+      const { total } = db.prepare(countSql).get(req.teacher.id);
+      const page = parseInt(req.query.page) || 1;
+      const pageSize = parseInt(req.query.page_size) || 20;
+      const offset = (page - 1) * pageSize;
+      teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.managed_by = ? ORDER BY s.id LIMIT ? OFFSET ?`).all(req.teacher.id, pageSize, offset);
+      res.json({ data: teachers, total, page, page_size: pageSize });
+    }  } catch (err) {
     console.error('获取教师列表失败:', err);
     res.status(500).json({ error: '获取失败' });
   }
@@ -1265,18 +1281,32 @@ app.get('/api/admin/teachers', (req, res) => {
         ) < date('now', '-3 months')
       ) AND s.status = 'active' AND s.id != 1
       THEN 1 ELSE 0 END as _inactive`;
-    let teachers;
     if (isSuperAdmin(req.teacher)) {
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const pageSize = Math.max(1, parseInt(req.query.page_size) || 20);
+      const offset = (page - 1) * pageSize;
+      const baseSql = `SELECT s.*${inactiveSql} FROM teachers s`;
+      let whereSql = '';
+      let countParams = [];
+      let dataParams = [];
       if (role) {
-        teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.role = ? ORDER BY s.id`).all(role);
-      } else {
-        teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s ORDER BY s.id`).all();
+        whereSql = ' WHERE s.role = ?';
+        countParams = [role];
+        dataParams = [role];
       }
+      const { total } = db.prepare(`SELECT COUNT(*) as total FROM teachers s${whereSql}`).get(...countParams);
+      const teachers = db.prepare(`${baseSql}${whereSql} ORDER BY s.id LIMIT ? OFFSET ?`).all(...dataParams, pageSize, offset);
+      res.json({ data: teachers, total, page, page_size: pageSize });
     } else {
       // manager 只能看见自己名下的教师
-      teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.managed_by = ? ORDER BY s.id`).all(req.teacher.id);
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const pageSize = Math.max(1, parseInt(req.query.page_size) || 20);
+      const offset = (page - 1) * pageSize;
+      const { total } = db.prepare(`SELECT COUNT(*) as total FROM teachers s WHERE s.managed_by = ?`).get(req.teacher.id);
+      const teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.managed_by = ? ORDER BY s.id LIMIT ? OFFSET ?`).all(req.teacher.id, pageSize, offset);
+      res.json({ data: teachers, total, page, page_size: pageSize });
     }
-    res.json({ data: teachers });
+    
   } catch (err) {
     console.error('获取教师列表失败:', err);
     res.status(500).json({ error: '获取失败' });
