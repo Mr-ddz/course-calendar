@@ -115,7 +115,6 @@ if (!teachersExist) {
     CREATE TABLE teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       token TEXT,
       email TEXT DEFAULT '',
@@ -134,8 +133,8 @@ if (!teachersExist) {
 
   const hash = crypto.createHash('sha256').update('admin123').digest('hex');
   db.prepare(
-    `INSERT INTO teachers (name, username, password) VALUES (?, ?, ?)`
-  ).run('管理员', 'admin', hash);
+    `INSERT INTO teachers (name, password) VALUES (?, ?)`
+  ).run('管理员', hash);
 } else {
   // 兼容旧表：补充字段
   const teacherCols = db.prepare(`SELECT name FROM pragma_table_info('teachers')`).all().map(r => r.name);
@@ -255,7 +254,7 @@ if (hasFeeCol) {
   }
 }
 
-// ========== 7. 教师表角色字段迁移 ==========
+// ========== 7. 教师表角色字段迁移（要在删除 username 之前执行，确保字段存在） ==========
 const teacherColsMigration = db.prepare(`SELECT name FROM pragma_table_info('teachers')`).all().map(r => r.name);
 const roleFields = {
   role: "TEXT DEFAULT 'teacher'",
@@ -270,6 +269,43 @@ for (const [name, def] of Object.entries(roleFields)) {
 const adminUpdate = db.prepare(`UPDATE teachers SET role = 'super_admin' WHERE id = 1 AND role = 'teacher'`).run();
 if (adminUpdate.changes > 0) {
   console.log(`👑 已将管理员账号设为 super_admin`);
+}
+
+// ========== 8. 删除 username 字段（SQLite 不支持直接 DROP UNIQUE 列，需要重建表） ==========
+const hasUsernameCol = db.prepare(`SELECT COUNT(*) as cnt FROM pragma_table_info('teachers') WHERE name='username'`).get().cnt > 0;
+if (hasUsernameCol) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE teachers_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      password TEXT NOT NULL,
+      token TEXT,
+      email TEXT DEFAULT '',
+      source TEXT DEFAULT 'admin',
+      status TEXT DEFAULT 'active',
+      role TEXT DEFAULT 'teacher',
+      managed_by INTEGER DEFAULT NULL,
+      last_login_at TEXT DEFAULT NULL,
+      last_logout_at TEXT DEFAULT NULL,
+      token_expires_at TEXT DEFAULT NULL,
+      refresh_token TEXT DEFAULT NULL,
+      refresh_token_expires_at TEXT DEFAULT NULL,
+      reset_token TEXT DEFAULT NULL,
+      reset_token_expires_at TEXT DEFAULT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  // 先查询当前所有列名，动态构建 INSERT
+  const existingCols = db.prepare(`SELECT name FROM pragma_table_info('teachers')`).all().map(r => r.name);
+  const skipCols = ['username'];
+  const copyCols = existingCols.filter(c => !skipCols.includes(c));
+  const colList = copyCols.join(', ');
+  db.exec(`INSERT INTO teachers_new (${colList}) SELECT ${colList} FROM teachers`);
+  db.exec(`DROP TABLE teachers`);
+  db.exec(`ALTER TABLE teachers_new RENAME TO teachers`);
+  db.pragma('foreign_keys = ON');
+  console.log(`🗑️ 已删除 teachers 表的 username 字段`);
 }
 
 module.exports = db;

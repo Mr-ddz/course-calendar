@@ -43,7 +43,7 @@ function authMiddleware(req, res, next) {
   }
 
   const token = authHeader.slice(7);
-  const teacher = db.prepare(`SELECT id, name, username, role, token_expires_at FROM teachers WHERE token = ?`).get(token);
+  const teacher = db.prepare(`SELECT id, name, role, token_expires_at FROM teachers WHERE token = ?`).get(token);
 
   if (!teacher) {
     return res.status(401).json({ error: '登录已过期，请重新登录' });
@@ -70,7 +70,7 @@ app.post('/api/refresh', (req, res) => {
       return res.status(400).json({ error: '缺少 refresh_token' });
     }
 
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status, role, refresh_token_expires_at FROM teachers WHERE refresh_token = ?`).get(refresh_token);
+    const teacher = db.prepare(`SELECT id, name, email, source, status, role, refresh_token_expires_at FROM teachers WHERE refresh_token = ?`).get(refresh_token);
 
     if (!teacher) {
       return res.status(401).json({ error: 'refresh_token 无效' });
@@ -91,7 +91,7 @@ app.post('/api/refresh', (req, res) => {
       data: {
         token: newToken,
         refresh_token: refresh_token,
-        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active', role: teacher.role || 'teacher' }
+        teacher: { id: teacher.id, name: teacher.name, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active', role: teacher.role || 'teacher' }
       }
     });
   } catch (err) {
@@ -149,18 +149,27 @@ app.use('/api', (req, res, next) => {
 // POST /api/login — 登录
 app.post('/api/login', (req, res) => {
   try {
-    const { username, password } = req.body;
-    if (!username || !password) {
-      return res.status(400).json({ error: '请输入用户名和密码' });
+    const { identity, password } = req.body;
+    if (!identity || !password) {
+      return res.status(400).json({ error: '请输入邮箱和密码' });
     }
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
-    const teacher = db.prepare(
-      `SELECT id, name, username, email, source, status, role FROM teachers WHERE (username = ? OR email = ?) AND password = ? AND status = 'active'`
-    ).get(username, username, hash);
+    let teacher;
+    if (identity === 'admin') {
+      // admin (id=1) 通过名称登录
+      teacher = db.prepare(
+        `SELECT id, name, email, source, status, role FROM teachers WHERE name = '\u7ba1\u7406\u5458' AND password = ? AND status = 'active'`
+      ).get(hash);
+    } else {
+      // 其他用户通过邮箱登录
+      teacher = db.prepare(
+        `SELECT id, name, email, source, status, role FROM teachers WHERE email = ? AND password = ? AND status = 'active'`
+      ).get(identity, hash);
+    }
 
     if (!teacher) {
-      return res.status(401).json({ error: '用户名或密码错误' });
+      return res.status(401).json({ error: '用户名或密码邮箱或密码错误' });
     }
 
     // 生成 access token（2小时）+ refresh token（7天）
@@ -175,7 +184,7 @@ app.post('/api/login', (req, res) => {
       data: {
         token,
         refresh_token: refreshToken,
-        teacher: { id: teacher.id, name: teacher.name, username: teacher.username, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active', role: teacher.role || 'teacher' }
+        teacher: { id: teacher.id, name: teacher.name, email: teacher.email || '', source: teacher.source || 'admin', status: teacher.status || 'active', role: teacher.role || 'teacher' }
       }
     });
   } catch (err) {
@@ -204,36 +213,20 @@ app.get('/api/me', (req, res) => {
 });
 
 // GET /api/teachers — 获取所有教师列表
-app.get('/api/teachers', (req, res) => {
+app.get("/api/teachers", (req, res) => {
   try {
     let teachers;
     if (isSuperAdmin(req.teacher)) {
-      const countSql = `SELECT COUNT(*) as total FROM teachers s`;
-      const whereClause = role ? ` WHERE s.role = '` + role + `'` : '';
-      const { total } = db.prepare(`${countSql} ${whereClause}`).get();
-      const baseSql = `SELECT s.*${inactiveSql} FROM teachers s`;
-      const orderSql = ` ORDER BY s.id LIMIT ? OFFSET ?`;
-      const page = parseInt(req.query.page) || 1;
-      const pageSize = parseInt(req.query.page_size) || 20;
-      const offset = (page - 1) * pageSize;
-      if (role) {
-        teachers = db.prepare(`${baseSql} ${whereClause} ${orderSql}`).all(role, pageSize, offset);
-      } else {
-        teachers = db.prepare(`${baseSql} ${whereClause} ${orderSql}`).all(pageSize, offset);
-      }
-      res.json({ data: teachers, total, page, page_size: pageSize });
+      teachers = db.prepare(`SELECT id, name, role FROM teachers WHERE role != 'super_admin' ORDER BY id`).all();
+    } else if (getRole(req.teacher) === "manager") {
+      teachers = db.prepare(`SELECT id, name, role FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
     } else {
-      // manager 只能看见自己名下的教师
-      const countSql = `SELECT COUNT(*) as total FROM teachers s WHERE s.managed_by = ?`;
-      const { total } = db.prepare(countSql).get(req.teacher.id);
-      const page = parseInt(req.query.page) || 1;
-      const pageSize = parseInt(req.query.page_size) || 20;
-      const offset = (page - 1) * pageSize;
-      teachers = db.prepare(`SELECT s.*${inactiveSql} FROM teachers s WHERE s.managed_by = ? ORDER BY s.id LIMIT ? OFFSET ?`).all(req.teacher.id, pageSize, offset);
-      res.json({ data: teachers, total, page, page_size: pageSize });
-    }  } catch (err) {
-    console.error('获取教师列表失败:', err);
-    res.status(500).json({ error: '获取失败' });
+      teachers = [{ id: req.teacher.id, name: req.teacher.name, role: req.teacher.role || "teacher" }];
+    }
+    res.json({ data: teachers });
+  } catch (err) {
+    console.error("获取教师列表失败:", err);
+    res.status(500).json({ error: "获取失败" });
   }
 });
 
@@ -1221,15 +1214,10 @@ app.post('/api/register', (req, res) => {
     }
 
     // 检查用户名是否已存在
-    const nameExists = db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(name);
-    if (nameExists) {
-      return res.status(400).json({ error: '该用户名已被使用' });
-    }
-
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const finalRole = role === 'manager' ? 'manager' : 'teacher';
     db.prepare(
-      `INSERT INTO teachers (name, username, password, email, source, status, role) VALUES (?, ?, ?, ?, 'email', 'pending', ?)`
+      `INSERT INTO teachers (name, password, email, source, status, role) VALUES (?, ?, ?, 'email', 'pending', ?)`
     ).run(name, name, hash, email, finalRole);
 
     // 给系统邮箱发送新用户注册通知
@@ -1318,16 +1306,14 @@ app.post('/api/admin/teachers', (req, res) => {
   try {
     const isManagerUser = getRole(req.teacher) === 'manager';
     if (!isSuperAdmin(req.teacher) && !isManagerUser) return res.status(403).json({ error: '无权访问' });
-    let { name, username, password, role, email, managed_by } = req.body;
+    let { name, password, role, email, managed_by } = req.body;
     if (isManagerUser) role = 'teacher';
-    if (!name || !username || !password) {
-      return res.status(400).json({ error: '请填写姓名、用户名和密码' });
+    if (!name || !password) {
+      return res.status(400).json({ error: '请填写姓名和密码' });
     }
     if (!email) {
       return res.status(400).json({ error: '请填写邮箱' });
     }
-    const existing = db.prepare(`SELECT id FROM teachers WHERE username = ?`).get(username);
-    if (existing) return res.status(400).json({ error: '用户名已存在' });
     const emailExists = db.prepare(`SELECT id FROM teachers WHERE email = ?`).get(email);
     if (emailExists) return res.status(400).json({ error: '该邮箱已被使用' });
 
@@ -1339,9 +1325,9 @@ app.post('/api/admin/teachers', (req, res) => {
       finalManagedBy = parseInt(managed_by);
     }
     const result = db.prepare(
-      `INSERT INTO teachers (name, username, password, email, source, status, role, managed_by) VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`
-    ).run(name, username, hash, email, finalRole, finalManagedBy);
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status, role FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
+      `INSERT INTO teachers (name, password, email, source, status, role, managed_by) VALUES (?, ?, ?, 'admin', 'active', ?, ?)`
+    ).run(name, hash, email, finalRole, finalManagedBy);
+    const teacher = db.prepare(`SELECT id, name, email, source, status, role FROM teachers WHERE id = ?`).get(result.lastInsertRowid);
 
     // 发送邮件通知
     if (teacher.email && transporter) {
@@ -1407,7 +1393,7 @@ app.put('/api/admin/teachers/:id', (req, res) => {
     if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-    const teacher = db.prepare(`SELECT id, name, username, email, source, status, role FROM teachers WHERE id = ?`).get(id);
+    const teacher = db.prepare(`SELECT id, name, email, source, status, role FROM teachers WHERE id = ?`).get(id);
 
     // 审核通过时发送邮件通知
     if (status === 'active' && teacher.email && teacher.source === 'email' && transporter) {
