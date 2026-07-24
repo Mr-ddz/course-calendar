@@ -39,7 +39,7 @@ if (command === 'list') {
   console.log('\n📋 教师列表：');
   console.log('─'.repeat(60));
   teachers.forEach(t => {
-    console.log(`  ${t.id} | ${t.name} | ${t.username} | 来源:${t.source || 'admin'} | 状态:${t.status || 'active'} | 创建于 ${t.created_at}`);
+    console.log(`  ${t.id} | ${t.name} | ${t.email} | 来源:${t.source || 'admin'} | 状态:${t.status || 'active'} | 创建于 ${t.created_at}`);
   });
   if (!teachers.length) console.log('  (暂无教师)');
   console.log();
@@ -55,12 +55,12 @@ if (command === 'list') {
   }
 
   try {
-    db.prepare(`INSERT INTO teachers (name, username, password) VALUES (?, ?, ?)`)
-      .run(name, username, hashPassword(password));
-    console.log(`✅ 教师 "${name}" (${username}) 创建成功！`);
+    db.prepare(`INSERT INTO teachers (name, password) VALUES (?, ?)`)
+      .run(name, hashPassword(password));
+    console.log(`✅ 教师 "${name}" 创建成功！`);
   } catch (err) {
     if (err.message.includes('UNIQUE')) {
-      console.error(`❌ 用户名 "${username}" 已存在`);
+      /* 不再需要用户名唯一检查 */
     } else {
       console.error('❌ 创建失败:', err.message);
     }
@@ -105,13 +105,13 @@ if (command === 'list') {
 📚 教师管理脚本
 
   查看教师        node seed.js list
-  添加教师        node seed.js add "姓名" "用户名" "密码"
+  添加教师        node seed.js add "姓名" "密码"
   删除教师        node seed.js delete <id>
   重置密码        node seed.js reset-password "用户名" "新密码"
 
   示例：
-    node seed.js add "张三" "zhangsan" "123456"
-    node seed.js add "李四" "lisi" "654321"
+    node seed.js add "张三" "123456"
+    node seed.js add "李四" "654321"
     node seed.js list
 `);
 }

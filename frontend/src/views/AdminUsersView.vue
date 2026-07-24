@@ -6,7 +6,7 @@
       </div>
       <div class="admin-toolbar">
         <div class="admin-toolbar-left">
-          <span class="admin-count">共 {{ teachers.length }} 位用户</span>
+          <span class="admin-count">共 {{ total }} 位用户</span>
         </div>
         <el-button type="primary" size="small" @click="openAddDialog">+ {{ isSuperAdmin ? '添加用户' : '添加教师' }}</el-button>
       </div>
@@ -16,7 +16,6 @@
       <el-table :data="teachers" stripe style="width: 100%" v-loading="loading">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180">
           <template #default="{ row }">
             <span v-if="row.email">{{ row.email }}</span>
@@ -64,6 +63,19 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="admin-pagination">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next"
+          size="small"
+          background
+          @size-change="onPageSizeChange"
+          @current-change="onPageChange"
+        />
+      </div>
     </div>
 
     <!-- 添加用户对话框 -->
@@ -71,9 +83,6 @@
       <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="100px" size="large">
         <el-form-item label="姓名" prop="name">
           <el-input v-model="addForm.name" placeholder="如：张老师" />
-        </el-form-item>
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="addForm.username" placeholder="用于登录" />
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="addForm.email" placeholder="接收登录通知" />
@@ -154,15 +163,17 @@ const isSuperAdmin = teacherInfo.role === 'super_admin'
 
 const teachers = ref([])
 const loading = ref(false)
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(20)
 const showAddDialog = ref(false)
 const adding = ref(false)
 const addFormRef = ref(null)
 const managerOptions = ref([])
 
-const addForm = ref({ name: '', username: '', email: '', password: '', role: 'teacher', managed_by: '' })
+const addForm = ref({ name: '', email: '', password: '', role: 'teacher', managed_by: '' })
 const addRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   email: [{ required: true, type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
@@ -170,13 +181,17 @@ const addRules = {
 async function loadTeachers() {
   loading.value = true
   try {
-    const res = await adminGetTeachers()
+    const res = await adminGetTeachers({ page: currentPage.value, page_size: pageSize.value })
     teachers.value = res.data.data || []
+    total.value = res.data.total || 0
   } catch (err) {
     if (err.response?.status === 403) router.push('/app/calendar')
     ElMessage.error('加载失败')
   } finally { loading.value = false }
 }
+
+function onPageChange(page) { currentPage.value = page; loadTeachers() }
+function onPageSizeChange() { currentPage.value = 1; loadTeachers() }
 
 async function loadManagerOptions() {
   if (!isSuperAdmin) return
@@ -216,7 +231,6 @@ async function handleAddTeacher() {
   try {
     const data = {
       name: addForm.value.name,
-      username: addForm.value.username,
       email: addForm.value.email,
       password: addForm.value.password,
       role: isSuperAdmin ? addForm.value.role : 'teacher'
@@ -353,7 +367,7 @@ async function handleChangeRole() {
 }
 
 function resetAddForm() {
-  addForm.value = { name: '', username: '', email: '', password: '', role: 'teacher', managed_by: '' }
+  addForm.value = { name: '', email: '', password: '', role: 'teacher', managed_by: '' }
 }
 
 onMounted(() => { loadTeachers() })
