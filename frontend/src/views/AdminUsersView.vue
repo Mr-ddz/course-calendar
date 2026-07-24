@@ -57,6 +57,7 @@
               <el-button v-if="row.status === 'pending'" class="btn-reject" size="small" @click="rejectUser(row)">拒绝</el-button>
               <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-disable" size="small" @click="toggleStatus(row, 'disabled')">禁用</el-button>
               <el-button v-if="row.status === 'disabled'" class="btn-enable" size="small" @click="toggleStatus(row, 'active')">启用</el-button>
+              <el-button v-if="isSuperAdmin && row.status === 'active' && row.id !== 1" class="btn-role" size="small" @click="openChangeRoleDialog(row)">修改角色</el-button>
               <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-resetpwd" size="small" @click="openResetPwdDialog(row)">重置密码</el-button>
               <el-button v-if="row.id !== 1" class="btn-delete" size="small" @click="deleteUser(row)">删除</el-button>
             </div>
@@ -119,6 +120,23 @@
       <template #footer>
         <el-button @click="showResetPwdDialog = false">取消</el-button>
         <el-button type="primary" :loading="resettingPwd" @click="handleResetPwd">确定重置</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 修改角色对话框 -->
+    <el-dialog v-model="showChangeRoleDialog" title="修改角色" width="400px" destroy-on-close @closed="changeRoleTarget = null">
+      <div class="change-role-info">当前角色：<el-tag size="small">{{ changeRoleTarget?.role === 'manager' ? '管理员' : '教师' }}</el-tag></div>
+      <el-form label-width="80px" size="large" style="margin-top:16px">
+        <el-form-item label="新角色">
+          <el-radio-group v-model="changeRoleForm.role">
+            <el-radio value="teacher">教师</el-radio>
+            <el-radio value="manager">管理员</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showChangeRoleDialog = false">取消</el-button>
+        <el-button type="primary" :loading="changingRole" @click="handleChangeRole">确定修改</el-button>
       </template>
     </el-dialog>
   </div>
@@ -304,6 +322,34 @@ function resetPwdDialog() {
   resetPwdTarget.value = null
   resetPwdForm.password = ''
   resettingPwd.value = false
+}
+
+// ===== 修改角色 =====
+const showChangeRoleDialog = ref(false)
+const changeRoleTarget = ref(null)
+const changeRoleForm = reactive({ role: 'teacher' })
+const changingRole = ref(false)
+
+function openChangeRoleDialog(row) {
+  changeRoleTarget.value = row
+  changeRoleForm.role = row.role || 'teacher'
+  showChangeRoleDialog.value = true
+}
+
+async function handleChangeRole() {
+  if (!changeRoleTarget.value || changeRoleForm.role === changeRoleTarget.value.role) {
+    ElMessage.info('角色未发生变化')
+    return
+  }
+  changingRole.value = true
+  try {
+    await adminUpdateTeacher(changeRoleTarget.value.id, { role: changeRoleForm.role })
+    ElMessage.success('角色已修改')
+    showChangeRoleDialog.value = false
+    loadTeachers()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || '修改失败')
+  } finally { changingRole.value = false }
 }
 
 function resetAddForm() {
