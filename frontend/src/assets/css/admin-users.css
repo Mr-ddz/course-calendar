@@ -76,6 +76,11 @@
   padding: 12px 16px;
   line-height: 1.6;
 }
+.admin-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+}
 .admin-page {
   max-width: 1080px; margin: 0 auto; min-height: 100vh;
   background: #f5f7fa; display: flex; flex-direction: column;
