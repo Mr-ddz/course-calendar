@@ -1211,9 +1211,33 @@ app.post('/api/register', (req, res) => {
     }
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const finalRole = role === 'manager' ? 'manager' : 'teacher';
     db.prepare(
       `INSERT INTO teachers (name, username, password, email, source, status, role) VALUES (?, ?, ?, ?, 'email', 'pending', ?)`
-    ).run(name, name, hash, email, role === 'manager' ? 'manager' : 'teacher');
+    ).run(name, name, hash, email, finalRole);
+
+    // 给系统邮箱发送新用户注册通知
+    if (transporter) {
+      const roleLabel = finalRole === 'manager' ? '管理员' : '教师';
+      transporter.sendMail({
+        from: SMTP_FROM,
+        to: SMTP_FROM,
+        subject: '课表侠 - 新用户注册通知',
+        html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+          <h2 style="color:#667eea;">课表侠</h2>
+          <p>有新的用户注册，请尽快审核：</p>
+          <div style="background:#f5f5f5;border-radius:8px;padding:16px;margin:16px 0;">
+            <p>👤 姓名：<strong>${name}</strong></p>
+            <p>📧 邮箱：${email}</p>
+            <p>🏷️ 身份：${roleLabel}</p>
+          </div>
+          <p style="text-align:center;margin:24px 0;">
+            <a href="${SITE_URL}/login" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往审核</a>
+          </p>
+          <p style="color:#999;font-size:12px;">登录地址：${SITE_URL}</p>
+        </div>`
+      }).catch(e => console.error('发送新用户注册通知失败:', e));
+    }
 
     res.json({ message: '注册成功，请等待管理员审核' });
   } catch (err) {
@@ -1231,7 +1255,11 @@ app.get('/api/admin/teachers', (req, res) => {
     const { role } = req.query;
     const inactiveSql = `,
       CASE WHEN (
-        (s.last_login_at IS NULL OR s.last_login_at < date('now', '-3 months'))
+        (
+          (s.last_login_at IS NULL AND s.created_at < date('now', '-30 days'))
+          OR
+          (s.last_login_at IS NOT NULL AND s.last_login_at < date('now', '-3 months'))
+        )
         AND (
           SELECT COALESCE(MAX(c.updated_at), '1970-01-01') FROM courses c WHERE c.teacher_id = s.id
         ) < date('now', '-3 months')
@@ -1338,13 +1366,14 @@ app.put('/api/admin/teachers/:id', (req, res) => {
       const target = db.prepare(`SELECT id, managed_by FROM teachers WHERE id = ?`).get(id);
       if (!target || target.managed_by !== req.teacher.id) return res.status(403).json({ error: '无权操作该教师' });
     }
-    const { status, name, password } = req.body;
+    const { status, name, password, role } = req.body;
     const updates = [];
     const params = [];
     const isResetPwd = !!password; // 记录是否在重置密码
     if (status) { updates.push('status = ?'); params.push(status); }
     if (name) { updates.push('name = ?'); params.push(name); }
     if (password) { updates.push('password = ?'); params.push(crypto.createHash('sha256').update(password).digest('hex')); }
+    if (role) { updates.push('role = ?'); params.push(role); }
     if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
