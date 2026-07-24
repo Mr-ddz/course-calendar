@@ -169,7 +169,7 @@ app.post('/api/login', (req, res) => {
     }
 
     if (!teacher) {
-      return res.status(401).json({ error: '用户名或密码邮箱或密码错误' });
+      return res.status(401).json({ error: '邮箱或密码错误' });
     }
 
     // 生成 access token（2小时）+ refresh token（7天）
@@ -1137,6 +1137,10 @@ app.get('/api/courses/statistics', (req, res) => {
     if (end_date) {
       dateFilter.push('c.date <= ?');
       params.push(end_date);
+    }
+    if (teacher_id) {
+      dateFilter.push('c.teacher_id = ?');
+      params.push(teacher_id);
     }
     const dateWhere = dateFilter.length > 0 ? 'AND ' + dateFilter.join(' AND ') : '';
 
