@@ -116,7 +116,12 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="isAdmin" prop="teacher_name" label="教师" min-width="70" />
+        <el-table-column v-if="showTeacherFilter" prop="teacher_name" label="教师" min-width="70" />
+        <el-table-column label="操作" min-width="60">
+          <template #default="{ row }">
+            <el-button size="small" text type="primary" @click="goToEdit(row)">编辑</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -138,6 +143,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { searchCourses, getStatistics, getTeachers } from '../api/index.js'
@@ -154,6 +160,7 @@ const teacherName = teacherInfo.name || ''
 const teacherRole = teacherInfo.role || 'teacher'
 const showTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
 const teacherOptions = ref([])
+const router = useRouter()
 
 async function loadTeacherOptions() {
   if (!showTeacherFilter) return
@@ -170,7 +177,9 @@ const statsData = reactive({ data: [], totals: null })
 function getPeriodRange(p) {
   const now = dayjs()
   if (p === 'week') {
-    return [now.startOf('week').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
+    const day = now.day()
+    const diff = day === 0 ? 6 : day - 1 // 距离周一的天数
+    return [now.subtract(diff, 'day').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
   } else if (p === 'year') {
     return [now.startOf('year').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
   }
@@ -300,39 +309,64 @@ function resetSearch() {
 }
 
 // ===== 辅助函数 =====
-function exportCSV() {
-  const data = searchResult.data
-  if (!data || data.length === 0) {
-    ElMessage.warning('没有数据可导出')
+async function exportCSV() {
+  // 用当前搜索条件请求全部数据（取消分页限制）
+  const params = { page: 1, page_size: 100000 }
+  if (searchDateRange.value) {
+    params.start_date = searchDateRange.value[0]
+    params.end_date = searchDateRange.value[1]
+  }
+  if (searchForm.student_name) params.student_name = searchForm.student_name
+  if (searchForm.grade) params.grade = searchForm.grade
+  if (searchForm.attended !== "" && searchForm.attended !== null) {
+    params.attended = String(searchForm.attended)
+  }
+  if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+
+  let allData
+  try {
+    const res = await searchCourses(params)
+    allData = res.data.data || []
+  } catch {
+    ElMessage.error("导出失败")
+    return
+  }
+
+  if (!allData || allData.length === 0) {
+    ElMessage.warning("没有数据可导出")
     return
   }
 
   // BOM for UTF-8 + headers
-  let csv = '\uFEFF日期,开始,结束,时长,学生,年级,每小时课时费,实收,签到,教师\n'
+  let csv = "﻿日期,开始,结束,时长,学生,年级,每小时课时费,实收,签到,教师\n"
 
-  for (const r of data) {
+  for (const r of allData) {
     const row = [
       r.date,
       r.start_time,
       r.end_time,
       calcDuration(r.start_time, r.end_time),
       r.student_name,
-      r.grade || '',
+      r.grade || "",
       r.hourly_fee,
-      r.attended ? calcReceivedFee(r) : '0',
-      r.attended ? '已到' : '未到',
-      r.teacher_name || ''
-    ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(',')
-    csv += row + '\n'
+      r.attended ? calcReceivedFee(r) : "0",
+      r.attended ? "已到" : "未到",
+      r.teacher_name || ""
+    ].map(v => '"' + (v || '').toString().replace(/"/g, '""').replace(/\n/g, ' ') + '"').join(',')
+    csv += row + "\n"
   }
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+  const link = document.createElement("a")
   link.href = URL.createObjectURL(blob)
-  link.download = '课程数据_' + new Date().toISOString().slice(0, 10) + '.csv'
+  link.download = "课程数据_" + new Date().toISOString().slice(0, 10) + ".csv"
   link.click()
   URL.revokeObjectURL(link.href)
-  ElMessage.success('导出成功')
+  ElMessage.success("导出成功")
+}
+
+function goToEdit(row) {
+  router.push('/app/day/' + row.date + '?edit=' + row.id + '&from=statistics')
 }
 
 function formatHours(hours) {

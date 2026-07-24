@@ -3,9 +3,11 @@
     <!-- 顶部面包屑导航 -->
     <header class="detail-header">
       <div class="detail-header-row">
-        <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
+        <div class="detail-header-btns">
+          <el-button v-if="fromStatistics" class="back-btn" @click="goBackToStats">&lt; 返回前一页</el-button>
+          <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
+        </div>
         <h1 class="detail-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> {{ teacherName }}的课程表</h1>
-        
       </div>
       <!-- 日导航 -->
       <div class="detail-nav">
@@ -258,6 +260,11 @@ const isAdmin = computed(() => teacherInfo.id === 1)
 const teacherRole = teacherInfo.role || 'teacher'
 const canSelectTeacher = teacherRole === 'super_admin' || teacherRole === 'manager'
 const teacherOptions = ref([])
+const fromStatistics = computed(() => route.query.from === 'statistics')
+
+function goBackToStats() {
+  router.push('/app/statistics')
+}
 
 async function loadTeachersForCourse() {
   if (!canSelectTeacher) return
@@ -738,10 +745,17 @@ watch(() => route.params.date, (newDate) => {
   }
 })
 
-onMounted(() => {
+onMounted(async () => {
   dateStr.value = route.params.date || dayjs().format('YYYY-MM-DD')
-  loadCourses()
+  await loadCourses()
   loadTeachersForCourse()
+  // 从统计页跳转过来时，自动打开对应课程的编辑弹窗
+  if (route.query.edit) {
+    const target = courses.value.find(c => c.id == route.query.edit)
+    if (target) {
+      nextTick(() => { editCourse(target) })
+    }
+  }
   nextTick(() => scrollToSuitable())
 })
 </script>

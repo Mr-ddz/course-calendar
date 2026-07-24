@@ -9,6 +9,12 @@
           <el-form-item>
             <el-input v-model="searchName" placeholder="搜索学生姓名" clearable style="width:200px" @keyup.enter="doSearch" />
           </el-form-item>
+          <el-form-item v-if="showTeacherFilter">
+            <el-select v-model="filterTeacherId" placeholder="全部教师" clearable style="width:150px">
+              <el-option label="全部教师" value="" />
+              <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+            </el-select>
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="doSearch">搜索</el-button>
             <el-button @click="resetSearch">重置</el-button>
@@ -208,7 +214,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi } from '../api/index.js'
+import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi, getTeachers } from '../api/index.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -224,12 +230,28 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 
+// 教师筛选
+const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
+const teacherRole = teacherInfo.role || 'teacher'
+const showTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
+const filterTeacherId = ref('')
+const teacherOptions = ref([])
+
+async function loadTeacherOptions() {
+  if (!showTeacherFilter) return
+  try {
+    const res = await getTeachers()
+    teacherOptions.value = res.data.data || []
+  } catch {}
+}
+
 // 列表
 async function loadStudents() {
   loading.value = true
   try {
     const params = { page: currentPage.value, page_size: pageSize.value }
     if (searchName.value) params.name = searchName.value
+    if (filterTeacherId.value) params.teacher_id = filterTeacherId.value
     const res = await getStudents(params)
     students.value = (res.data.data || []).map(s => ({ ...s, hourly_fee: s.hourly_fee || 0, prepaid_balance: s.prepaid_balance || 0 }))
     total.value = res.data.total || 0
@@ -241,7 +263,7 @@ async function loadStudents() {
 }
 
 function doSearch() { currentPage.value = 1; loadStudents() }
-function resetSearch() { searchName.value = ''; currentPage.value = 1; loadStudents() }
+function resetSearch() { searchName.value = ''; filterTeacherId.value = ''; currentPage.value = 1; loadStudents() }
 function onPageChange(page) { currentPage.value = page; loadStudents() }
 function onPageSizeChange() { currentPage.value = 1; loadStudents() }
 
@@ -414,7 +436,7 @@ function txTypeLabel(type) {
   return map[type] || type
 }
 
-onMounted(() => { loadStudents() })
+onMounted(() => { loadTeacherOptions(); loadStudents() })
 </script>
 
 <style scoped>

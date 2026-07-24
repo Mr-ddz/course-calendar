@@ -22,6 +22,11 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.detail-header-btns {
+  display: flex;
+  gap: 6px;
 }
 .detail-user {
   margin-left: auto;

@@ -252,6 +252,7 @@ app.get('/api/students', (req, res) => {
     conditions.push(stuAccess.sql);
     params.push(...stuAccess.params);
     if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
+    if (req.query.teacher_id) { conditions.push("s.teacher_id = ?"); params.push(req.query.teacher_id); }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
     const { total } = db.prepare(`${countSql} ${whereClause}`).get(...params);
