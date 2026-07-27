@@ -92,6 +92,7 @@
 .stat-card--primary .stat-card-value { color: #a0d8ff; }
 .stat-card--success .stat-card-value { color: #b7eb8f; }
 .stat-card--warning .stat-card-value { color: #ffe58f; }
+.stat-card--info .stat-card-value { color: #ffd700; }
 
 /* 周期明细表 */
 .stats-chart {

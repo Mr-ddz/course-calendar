@@ -35,6 +35,10 @@
           <div class="stat-card-value">¥{{ (statsData.totals?.total_fee || 0).toFixed(0) }}</div>
           <div class="stat-card-label">应收课时费</div>
         </div>
+        <div class="stat-card stat-card--info">
+          <div class="stat-card-value">¥{{ (statsData.totals?.total_prepaid || 0).toFixed(0) }}</div>
+          <div class="stat-card-label">预存余额</div>
+        </div>
       </div>
     </header>
 
@@ -63,10 +67,16 @@
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="教师" style="margin-bottom: 10px;">
+        <el-form-item v-if="isSuperAdmin" label="管理员" style="margin-bottom: 10px;">
+          <el-select v-model="searchForm.manager_id" placeholder="全部管理员" clearable style="width: 150px;" @change="onManagerChange">
+            <el-option label="全部管理员" value="" />
+            <el-option v-for="m in managerOptions" :key="m.id" :label="m.name" :value="String(m.id)" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="showTeacherFilter" label="教师" style="margin-bottom: 10px;">
           <el-select v-model="searchForm.teacher_id" placeholder="全部教师" clearable style="width: 130px;">
             <el-option label="全部教师" value="" />
-            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="String(t.id)" />
           </el-select>
         </el-form-item>
         <el-form-item label="签到" style="margin-bottom: 10px;">
@@ -158,16 +168,32 @@ const gradeOptions = [
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 const teacherRole = teacherInfo.role || 'teacher'
-const showTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
+const isSuperAdmin = teacherRole === 'super_admin'
+const showTeacherFilter = isSuperAdmin || teacherRole === 'manager'
 const teacherOptions = ref([])
+const managerOptions = ref([])
 const router = useRouter()
 
-async function loadTeacherOptions() {
-  if (!showTeacherFilter) return
+async function loadTeacherOptions(managedBy) {
   try {
-    const res = await getTeachers()
+    const params = {}
+    if (managedBy) params.managed_by = managedBy
+    const res = await getTeachers(params)
     teacherOptions.value = res.data.data || []
   } catch {}
+}
+
+async function loadManagerOptions() {
+  if (!isSuperAdmin) return
+  try {
+    const res = await getTeachers()
+    managerOptions.value = (res.data.data || []).filter(t => t.role === 'manager')
+  } catch {}
+}
+
+function onManagerChange(val) {
+  searchForm.teacher_id = ''
+  loadTeacherOptions(val || undefined)
 }
 
 // ===== 统计周期（只填充日期范围，不直接调接口） =====
@@ -205,7 +231,8 @@ const searchForm = reactive({
   student_name: '',
   grade: '',
   attended: '',
-  teacher_id: ''
+  teacher_id: '',
+  manager_id: ''
 })
 const searchResult = reactive({ data: [], total: 0 })
 const searchPage = ref(1)
@@ -228,6 +255,7 @@ async function doSearch() {
     params.attended = String(searchForm.attended)
   }
   if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+  if (searchForm.manager_id) params.managed_by = searchForm.manager_id
 
   // 加载统计
   if (range) {
@@ -289,6 +317,7 @@ async function loadSearchOnly() {
       params.attended = String(searchForm.attended)
     }
     if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+    if (searchForm.manager_id) params.managed_by = searchForm.manager_id
     const res = await searchCourses(params)
     searchResult.data = res.data.data || []
     searchResult.total = res.data.total || 0
@@ -322,6 +351,7 @@ async function exportCSV() {
     params.attended = String(searchForm.attended)
   }
   if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+  if (searchForm.manager_id) params.managed_by = searchForm.manager_id
 
   let allData
   try {
@@ -395,6 +425,7 @@ function calcDuration(start, end) {
 
 onMounted(() => {
   searchDateRange.value = getPeriodRange('month')
+  loadManagerOptions()
   loadTeacherOptions()
   doSearch()
 })

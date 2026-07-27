@@ -12,7 +12,7 @@
           <el-form-item v-if="showTeacherFilter">
             <el-select v-model="filterTeacherId" placeholder="全部教师" clearable style="width:150px">
               <el-option label="全部教师" value="" />
-              <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+              <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="String(t.id)" />
             </el-select>
           </el-form-item>
           <el-form-item>
