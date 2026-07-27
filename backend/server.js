@@ -217,11 +217,16 @@ app.get("/api/teachers", (req, res) => {
   try {
     let teachers;
     if (isSuperAdmin(req.teacher)) {
-      teachers = db.prepare(`SELECT id, name, role FROM teachers WHERE role != 'super_admin' ORDER BY id`).all();
+      const { managed_by } = req.query;
+      if (managed_by) {
+        teachers = db.prepare(`SELECT id, name, role, managed_by FROM teachers WHERE managed_by = ? AND role != 'super_admin' ORDER BY id`).all(managed_by);
+      } else {
+        teachers = db.prepare(`SELECT id, name, role, managed_by FROM teachers WHERE role != 'super_admin' ORDER BY id`).all();
+      }
     } else if (getRole(req.teacher) === "manager") {
-      teachers = db.prepare(`SELECT id, name, role FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
+      teachers = db.prepare(`SELECT id, name, role, managed_by FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
     } else {
-      teachers = [{ id: req.teacher.id, name: req.teacher.name, role: req.teacher.role || "teacher" }];
+      teachers = [{ id: req.teacher.id, name: req.teacher.name, role: req.teacher.role || "teacher", managed_by: null }];
     }
     res.json({ data: teachers });
   } catch (err) {
@@ -1120,7 +1125,7 @@ app.get('/api/courses/search', (req, res) => {
 // 统计数据（按周/月/年）
 app.get('/api/courses/statistics', (req, res) => {
   try {
-    const { group_by = 'month', start_date, end_date, teacher_id } = req.query;
+    const { group_by = 'month', start_date, end_date, teacher_id, managed_by } = req.query;
 
     let teacherCondition = '';
     const params = [];
@@ -1142,6 +1147,17 @@ app.get('/api/courses/statistics', (req, res) => {
     if (teacher_id) {
       dateFilter.push('c.teacher_id = ?');
       params.push(teacher_id);
+    }
+    // managed_by → 展开为 teacher_id 列表
+    let managedTeacherIds = null;
+    if (managed_by) {
+      const rows = db.prepare(`SELECT id FROM teachers WHERE managed_by = ?`).all(managed_by);
+      if (rows.length > 0) {
+        managedTeacherIds = rows.map(r => r.id);
+        const ph = rows.map(() => '?').join(',');
+        dateFilter.push('c.teacher_id IN (' + ph + ')');
+        params.push(...managedTeacherIds);
+      }
     }
     const dateWhere = dateFilter.length > 0 ? 'AND ' + dateFilter.join(' AND ') : '';
 
@@ -1183,6 +1199,22 @@ app.get('/api/courses/statistics', (req, res) => {
       WHERE 1=1 ${teacherCondition} ${dateWhere}
     `;
     const totals = db.prepare(totalSql).get(...params);
+
+    // 查预交余额总和（从 students 表，同样受 teacher 权限过滤）
+    const stuAccess = accessibleClause(req.teacher, 's');
+    let stuWhere = stuAccess.sql;
+    let stuParams = [...stuAccess.params];
+    if (teacher_id) {
+      stuWhere += ' AND s.teacher_id = ?';
+      stuParams.push(teacher_id);
+    }
+    if (managedTeacherIds) {
+      const ph = managedTeacherIds.map(() => '?').join(',');
+      stuWhere += ' AND s.teacher_id IN (' + ph + ')';
+      stuParams.push(...managedTeacherIds);
+    }
+    const prepaidRow = db.prepare(`SELECT COALESCE(SUM(s.prepaid_balance), 0) as total_prepaid FROM students s WHERE ${stuWhere}`).get(...stuParams);
+    totals.total_prepaid = prepaidRow.total_prepaid;
 
     res.json({ data, totals });
   } catch (err) {
