@@ -3,9 +3,11 @@
     <!-- 顶部面包屑导航 -->
     <header class="detail-header">
       <div class="detail-header-row">
-        <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
+        <div class="detail-header-btns">
+          <el-button v-if="fromStatistics" class="back-btn" @click="goBackToStats">&lt; 返回前一页</el-button>
+          <el-button class="back-btn" @click="goBack">&lt; 返回月历</el-button>
+        </div>
         <h1 class="detail-title"><img src="../assets/images/logo.svg" class="title-icon" alt="课表侠" /> {{ teacherName }}的课程表</h1>
-        
       </div>
       <!-- 日导航 -->
       <div class="detail-nav">
@@ -115,43 +117,28 @@
             </template>
           </el-autocomplete>
         </el-form-item>
-        <el-form-item v-if="canSelectTeacher" label="教师" label-for="course_teacher">
-          <el-select id="course_teacher" v-model="courseForm.teacher_id" placeholder="选择教师" style="width:100%">
-            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+        <el-form-item v-if="showManagerSelect" label="管理员" label-for="course_manager">
+          <el-select id="course_manager" v-model="courseForm.manager_id" placeholder="选择管理员" clearable style="width:100%" @change="onMgrChange">
+            <el-option label="不指定" value="" />
+            <el-option v-for="m in managerOptions" :key="m.id" :label="m.name" :value="String(m.id)" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期" label-for="course_date">
+        <el-form-item v-if="canSelectTeacher" label="教师" required>
+          <el-select v-if="!isEditingNoMgrTeacher" v-model="courseForm.teacher_id" placeholder="选择教师" style="width:100%">
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="String(t.id)" />
+          </el-select>
+          <span v-else style="color:#303133;font-weight:600">{{ teacherOptions.find(t => t.id == courseForm.teacher_id)?.name || '—' }}</span>
+        </el-form-item>
+        <el-form-item label="时间" required label-for="course_datetime">
           <el-date-picker
-            id="course_date"
-            v-model="courseForm.date"
-            type="date"
-            placeholder="选择日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="开始时间" required label-for="course_start">
-          <el-time-picker
-            id="course_start"
-            v-model="courseForm.startTime"
-            placeholder="选择开始时间"
-            format="HH:mm"
-            value-format="HH:mm"
-            :disabled-hours="disabledStartHours"
-            :disabled-minutes="disabledStartMinutes"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="结束时间" required label-for="course_end">
-          <el-time-picker
-            id="course_end"
-            v-model="courseForm.endTime"
-            placeholder="选择结束时间"
-            format="HH:mm"
-            value-format="HH:mm"
-            :disabled-hours="disabledEndHours"
-            :disabled-minutes="disabledEndMinutes"
+            id="course_datetime"
+            v-model="dateTimeRange"
+            type="datetimerange"
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DD HH:mm"
             style="width: 100%"
           />
         </el-form-item>
@@ -242,7 +229,8 @@ import {
   updateCourse,
   deleteCourse as deleteCourseApi,
   getStudents,
-  getStudentRecentFee
+  getStudentRecentFee,
+  getTeachers
 } from '../api/index.js'
 
 const HOUR_HEIGHT = 64
@@ -255,15 +243,63 @@ const route = useRoute()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 const isAdmin = computed(() => teacherInfo.id === 1)
+const isSuperAdmin = teacherInfo.role === 'super_admin'
 const teacherRole = teacherInfo.role || 'teacher'
+const isEditingNoMgrTeacher = computed(() => {
+  return isSuperAdmin && isEditing.value && !courseForm.value.manager_id
+})
+const showManagerSelect = computed(() => {
+  if (!isSuperAdmin) return false
+  if (!editingId.value) return true
+  return !!courseForm.value.manager_id
+})
 const canSelectTeacher = teacherRole === 'super_admin' || teacherRole === 'manager'
 const teacherOptions = ref([])
+const managerOptions = ref([])
+const fromStatistics = computed(() => route.query.from === 'statistics')
 
-async function loadTeachersForCourse() {
+// 日期时间合并选择器 → 同步到 date / startTime / endTime
+const dateTimeRange = computed({
+  get() {
+    const cf = courseForm.value
+    if (cf.date && cf.startTime && cf.endTime) {
+      return [cf.date + ' ' + cf.startTime + ':00', cf.date + ' ' + cf.endTime + ':00']
+    }
+    return null
+  },
+  set(val) {
+    if (val && val.length === 2) {
+      courseForm.value.date = val[0].substring(0, 10)
+      courseForm.value.startTime = val[0].substring(11, 16)
+      courseForm.value.endTime = val[1].substring(11, 16)
+    }
+  }
+})
+
+function goBackToStats() {
+  router.push('/app/statistics')
+}
+
+function onMgrChange(val) {
+  courseForm.value.teacher_id = ''
+  loadTeachersForCourse(val || undefined)
+}
+
+async function loadTeachersForCourse(managedBy) {
   if (!canSelectTeacher) return
   try {
-    const res = await getTeachers()
+    const params = {}
+    if (managedBy) params.managed_by = managedBy
+    const res = await getTeachers(params)
     teacherOptions.value = res.data.data || []
+  } catch {}
+}
+
+async function loadManagerOptions() {
+  if (!isSuperAdmin) return
+  try {
+    const res = await getTeachers()
+    managerOptions.value = (res.data.data || []).filter(t => t.role === 'manager')
   } catch {}
 }
 
@@ -419,7 +455,8 @@ function getDefaultForm() {
     attended: false,
     repeat_type: 'none',
     end_date: '',
-    teacher_id: ''
+    teacher_id: '',
+    manager_id: ''
   }
 }
 
@@ -458,28 +495,7 @@ async function onStudentSelect(student) {
 const courseForm = ref(getDefaultForm())
 
 // 不可选时间
-const disabledStartHours = computed(() => () => {
-  if (!courseForm.value.endTime) return []
-  const [eh] = courseForm.value.endTime.split(':').map(Number)
-  return Array.from({ length: 24 - eh - 1 }, (_, i) => eh + 1 + i)
-})
-const disabledStartMinutes = computed(() => (hour) => {
-  if (!courseForm.value.endTime) return []
-  const [eh, em] = courseForm.value.endTime.split(':').map(Number)
-  if (hour === eh) return Array.from({ length: 60 - em }, (_, i) => em + i)
-  return []
-})
-const disabledEndHours = computed(() => () => {
-  if (!courseForm.value.startTime) return []
-  const [sh] = courseForm.value.startTime.split(':').map(Number)
-  return Array.from({ length: sh }, (_, i) => i)
-})
-const disabledEndMinutes = computed(() => (hour) => {
-  if (!courseForm.value.startTime) return []
-  const [sh, sm] = courseForm.value.startTime.split(':').map(Number)
-  if (hour === sh) return Array.from({ length: sm + 1 }, (_, i) => i)
-  return []
-})
+// 时间选择器禁用逻辑已合并到 datetimerange 中，不再需要独立的 disabled computed
 
 // 方法
 function goBack() {
@@ -557,7 +573,18 @@ function editCourse(course) {
     attended: !!course.attended,
     repeat_type: course.repeat_type || 'none',
     end_date: course.end_date || '',
-    teacher_id: course.teacher_id ? String(course.teacher_id) : ''
+    teacher_id: course.teacher_id ? String(course.teacher_id) : '',
+    manager_id: ''
+  }
+  // super_admin 编辑时：查出教师所属的管理员，自动选中
+  if (isSuperAdmin && course.teacher_id) {
+    const found = teacherOptions.value.find(t => t.id == course.teacher_id)
+    if (found && found.managed_by) {
+      courseForm.value.manager_id = String(found.managed_by)
+      loadTeachersForCourse(found.managed_by)
+    } else {
+      courseForm.value.manager_id = ''
+    }
   }
   dialogVisible.value = true
 }
@@ -583,6 +610,10 @@ async function saveCourse() {
   }
   if (!courseForm.value.grade.trim()) {
     ElMessage.warning('请输入年级')
+    return
+  }
+  if (canSelectTeacher && !courseForm.value.teacher_id) {
+    ElMessage.warning('请选择教师')
     return
   }
   if (!courseForm.value.hourly_fee || parseFloat(courseForm.value.hourly_fee) <= 0) {
@@ -738,10 +769,17 @@ watch(() => route.params.date, (newDate) => {
   }
 })
 
-onMounted(() => {
+onMounted(async () => {
   dateStr.value = route.params.date || dayjs().format('YYYY-MM-DD')
-  loadCourses()
-  loadTeachersForCourse()
+  await loadCourses()
+  await Promise.all([loadManagerOptions(), loadTeachersForCourse()])
+  // 从统计页跳转过来时，自动打开对应课程的编辑弹窗
+  if (route.query.edit) {
+    const target = courses.value.find(c => c.id == route.query.edit)
+    if (target) {
+      nextTick(() => { editCourse(target) })
+    }
+  }
   nextTick(() => scrollToSuitable())
 })
 </script>

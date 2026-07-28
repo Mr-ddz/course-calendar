@@ -35,6 +35,10 @@
           <div class="stat-card-value">¥{{ (statsData.totals?.total_fee || 0).toFixed(0) }}</div>
           <div class="stat-card-label">应收课时费</div>
         </div>
+        <div class="stat-card stat-card--info">
+          <div class="stat-card-value">¥{{ (statsData.totals?.total_prepaid || 0).toFixed(0) }}</div>
+          <div class="stat-card-label">预存余额</div>
+        </div>
       </div>
     </header>
 
@@ -63,10 +67,16 @@
             <el-option v-for="g in gradeOptions" :key="g.id" :label="g.name" :value="g.name" />
           </el-select>
         </el-form-item>
-        <el-form-item label="教师" style="margin-bottom: 10px;">
+        <el-form-item v-if="isSuperAdmin" label="管理员" style="margin-bottom: 10px;">
+          <el-select v-model="searchForm.manager_id" placeholder="全部管理员" clearable style="width: 150px;" @change="onManagerChange">
+            <el-option label="全部管理员" value="" />
+            <el-option v-for="m in managerOptions" :key="m.id" :label="m.name" :value="String(m.id)" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="showTeacherFilter" label="教师" style="margin-bottom: 10px;">
           <el-select v-model="searchForm.teacher_id" placeholder="全部教师" clearable style="width: 130px;">
             <el-option label="全部教师" value="" />
-            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="String(t.id)" />
           </el-select>
         </el-form-item>
         <el-form-item label="签到" style="margin-bottom: 10px;">
@@ -116,7 +126,12 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="isAdmin" prop="teacher_name" label="教师" min-width="70" />
+        <el-table-column v-if="showTeacherFilter" prop="teacher_name" label="教师" min-width="70" />
+        <el-table-column label="操作" min-width="60">
+          <template #default="{ row }">
+            <el-button size="small" text type="primary" @click="goToEdit(row)">编辑</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -138,6 +153,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { searchCourses, getStatistics, getTeachers } from '../api/index.js'
@@ -152,15 +168,32 @@ const gradeOptions = [
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherName = teacherInfo.name || ''
 const teacherRole = teacherInfo.role || 'teacher'
-const showTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
+const isSuperAdmin = teacherRole === 'super_admin'
+const showTeacherFilter = isSuperAdmin || teacherRole === 'manager'
 const teacherOptions = ref([])
+const managerOptions = ref([])
+const router = useRouter()
 
-async function loadTeacherOptions() {
-  if (!showTeacherFilter) return
+async function loadTeacherOptions(managedBy) {
   try {
-    const res = await getTeachers()
+    const params = {}
+    if (managedBy) params.managed_by = managedBy
+    const res = await getTeachers(params)
     teacherOptions.value = res.data.data || []
   } catch {}
+}
+
+async function loadManagerOptions() {
+  if (!isSuperAdmin) return
+  try {
+    const res = await getTeachers()
+    managerOptions.value = (res.data.data || []).filter(t => t.role === 'manager')
+  } catch {}
+}
+
+function onManagerChange(val) {
+  searchForm.teacher_id = ''
+  loadTeacherOptions(val || undefined)
 }
 
 // ===== 统计周期（只填充日期范围，不直接调接口） =====
@@ -170,7 +203,9 @@ const statsData = reactive({ data: [], totals: null })
 function getPeriodRange(p) {
   const now = dayjs()
   if (p === 'week') {
-    return [now.startOf('week').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
+    const day = now.day()
+    const diff = day === 0 ? 6 : day - 1 // 距离周一的天数
+    return [now.subtract(diff, 'day').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
   } else if (p === 'year') {
     return [now.startOf('year').format('YYYY-MM-DD'), now.format('YYYY-MM-DD')]
   }
@@ -196,7 +231,8 @@ const searchForm = reactive({
   student_name: '',
   grade: '',
   attended: '',
-  teacher_id: ''
+  teacher_id: '',
+  manager_id: ''
 })
 const searchResult = reactive({ data: [], total: 0 })
 const searchPage = ref(1)
@@ -219,6 +255,7 @@ async function doSearch() {
     params.attended = String(searchForm.attended)
   }
   if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+  if (searchForm.manager_id) params.managed_by = searchForm.manager_id
 
   // 加载统计
   if (range) {
@@ -280,6 +317,7 @@ async function loadSearchOnly() {
       params.attended = String(searchForm.attended)
     }
     if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+    if (searchForm.manager_id) params.managed_by = searchForm.manager_id
     const res = await searchCourses(params)
     searchResult.data = res.data.data || []
     searchResult.total = res.data.total || 0
@@ -300,39 +338,65 @@ function resetSearch() {
 }
 
 // ===== 辅助函数 =====
-function exportCSV() {
-  const data = searchResult.data
-  if (!data || data.length === 0) {
-    ElMessage.warning('没有数据可导出')
+async function exportCSV() {
+  // 用当前搜索条件请求全部数据（取消分页限制）
+  const params = { page: 1, page_size: 100000 }
+  if (searchDateRange.value) {
+    params.start_date = searchDateRange.value[0]
+    params.end_date = searchDateRange.value[1]
+  }
+  if (searchForm.student_name) params.student_name = searchForm.student_name
+  if (searchForm.grade) params.grade = searchForm.grade
+  if (searchForm.attended !== "" && searchForm.attended !== null) {
+    params.attended = String(searchForm.attended)
+  }
+  if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
+  if (searchForm.manager_id) params.managed_by = searchForm.manager_id
+
+  let allData
+  try {
+    const res = await searchCourses(params)
+    allData = res.data.data || []
+  } catch {
+    ElMessage.error("导出失败")
+    return
+  }
+
+  if (!allData || allData.length === 0) {
+    ElMessage.warning("没有数据可导出")
     return
   }
 
   // BOM for UTF-8 + headers
-  let csv = '\uFEFF日期,开始,结束,时长,学生,年级,每小时课时费,实收,签到,教师\n'
+  let csv = "﻿日期,开始,结束,时长,学生,年级,每小时课时费,实收,签到,教师\n"
 
-  for (const r of data) {
+  for (const r of allData) {
     const row = [
       r.date,
       r.start_time,
       r.end_time,
       calcDuration(r.start_time, r.end_time),
       r.student_name,
-      r.grade || '',
+      r.grade || "",
       r.hourly_fee,
-      r.attended ? calcReceivedFee(r) : '0',
-      r.attended ? '已到' : '未到',
-      r.teacher_name || ''
-    ].map(v => '"' + (v || '').toString().replace(/"/g, '""') + '"').join(',')
-    csv += row + '\n'
+      r.attended ? calcReceivedFee(r) : "0",
+      r.attended ? "已到" : "未到",
+      r.teacher_name || ""
+    ].map(v => '"' + (v || '').toString().replace(/"/g, '""').replace(/\n/g, ' ') + '"').join(',')
+    csv += row + "\n"
   }
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+  const link = document.createElement("a")
   link.href = URL.createObjectURL(blob)
-  link.download = '课程数据_' + new Date().toISOString().slice(0, 10) + '.csv'
+  link.download = "课程数据_" + new Date().toISOString().slice(0, 10) + ".csv"
   link.click()
   URL.revokeObjectURL(link.href)
-  ElMessage.success('导出成功')
+  ElMessage.success("导出成功")
+}
+
+function goToEdit(row) {
+  router.push('/app/day/' + row.date + '?edit=' + row.id + '&from=statistics')
 }
 
 function formatHours(hours) {
@@ -361,6 +425,7 @@ function calcDuration(start, end) {
 
 onMounted(() => {
   searchDateRange.value = getPeriodRange('month')
+  loadManagerOptions()
   loadTeacherOptions()
   doSearch()
 })

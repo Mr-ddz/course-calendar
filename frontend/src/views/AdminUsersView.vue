@@ -46,7 +46,14 @@
             <el-tag v-if="row.status === 'pending'" type="warning" size="small">申请中</el-tag>
             <el-tag v-else-if="row.status === 'disabled'" type="danger" size="small">禁用</el-tag>
             <el-tag v-else-if="row._inactive" type="info" size="small">不活跃</el-tag>
+
             <el-tag v-else type="success" size="small">正常</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="到期" width="95">
+          <template #default="{ row }">
+            <span v-if="row.expires_at" style="font-size:11px;color:#e6a23c">{{ row.expires_at }}</span>
+            <span v-else style="font-size:11px;color:#bbb">—</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="130">
@@ -57,6 +64,7 @@
               <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-disable" size="small" @click="toggleStatus(row, 'disabled')">禁用</el-button>
               <el-button v-if="row.status === 'disabled'" class="btn-enable" size="small" @click="toggleStatus(row, 'active')">启用</el-button>
               <el-button v-if="isSuperAdmin && row.status === 'active' && row.id !== 1" class="btn-role" size="small" @click="openChangeRoleDialog(row)">修改角色</el-button>
+              <el-button v-if="isSuperAdmin && row.status === 'active' && row.id !== 1" class="btn-expires" size="small" @click="openExpiryDialog(row)">设置到期</el-button>
               <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-resetpwd" size="small" @click="openResetPwdDialog(row)">重置密码</el-button>
               <el-button v-if="row.id !== 1" class="btn-delete" size="small" @click="deleteUser(row)">删除</el-button>
             </div>
@@ -146,6 +154,31 @@
       <template #footer>
         <el-button @click="showChangeRoleDialog = false">取消</el-button>
         <el-button type="primary" :loading="changingRole" @click="handleChangeRole">确定修改</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 设置到期对话框 -->
+    <el-dialog v-model="showExpiryDialog" title="设置到期时间" width="420px" destroy-on-close @closed="resetExpiry">
+      <div style="font-size:14px;color:#606266;margin-bottom:16px;">
+        设置「{{ expiryTarget?.name }}」的账号到期时间
+      </div>
+      <el-form label-width="80px" size="large">
+        <el-form-item label="到期设置">
+          <el-radio-group v-model="expiryForm.mode">
+            <el-radio value="never">永不过期</el-radio>
+            <el-radio value="date">指定日期</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="expiryForm.mode === 'date'" label="到期日期">
+          <el-date-picker v-model="expiryForm.date" type="date" placeholder="选择到期日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" style="width:100%" />
+        </el-form-item>
+      </el-form>
+      <div v-if="expiryForm.mode === 'date' && expiryForm.date" style="font-size:12px;color:#e6a23c;text-align:center;margin-top:-8px">
+        该账号将于 {{ expiryForm.date }} 到期，到期后无法登录
+      </div>
+      <template #footer>
+        <el-button @click="showExpiryDialog = false">取消</el-button>
+        <el-button type="primary" :loading="settingExpiry" @click="handleSetExpiry">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -371,6 +404,50 @@ function resetAddForm() {
 }
 
 onMounted(() => { loadTeachers() })
+// ===== 设置到期 =====
+const showExpiryDialog = ref(false)
+const expiryTarget = ref(null)
+const settingExpiry = ref(false)
+const expiryForm = reactive({ mode: "never", date: "" })
+
+function openExpiryDialog(row) {
+  expiryTarget.value = row
+  if (row.expires_at) {
+    expiryForm.mode = "date"
+    expiryForm.date = row.expires_at
+  } else {
+    expiryForm.mode = "never"
+    expiryForm.date = ""
+  }
+  showExpiryDialog.value = true
+}
+
+async function handleSetExpiry() {
+  settingExpiry.value = true
+  try {
+    const data = {}
+    if (expiryForm.mode === "date" && expiryForm.date) {
+      data.expires_at = expiryForm.date
+    } else {
+      data.expires_at = null
+    }
+    await adminUpdateTeacher(expiryTarget.value.id, data)
+    ElMessage.success("到期时间已设置")
+    showExpiryDialog.value = false
+    loadTeachers()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "设置失败")
+  } finally { settingExpiry.value = false }
+}
+
+function resetExpiry() {
+  expiryTarget.value = null
+  expiryForm.mode = "never"
+  expiryForm.date = ""
+  settingExpiry.value = false
+}
+
+
 </script>
 
 <style scoped>

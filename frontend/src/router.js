@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import axios from 'axios'
 import LandingView from './views/LandingView.vue'
 import CalendarView from './views/CalendarView.vue'
 import DayDetailView from './views/DayDetailView.vue'
@@ -9,6 +10,8 @@ import AdminUsersView from './views/AdminUsersView.vue'
 import ForgotPasswordView from './views/ForgotPasswordView.vue'
 import ResetPasswordView from './views/ResetPasswordView.vue'
 import StudentsView from './views/StudentsView.vue'
+
+let _tokenValidated = false
 
 const routes = [
   {
@@ -90,10 +93,29 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !localStorage.getItem('token')) {
-    next('/login')
+router.beforeEach(async (to, from, next) => {
+  const token = localStorage.getItem('token')
+  if (to.meta.requiresAuth) {
+    if (!token) {
+      next('/login')
+      return
+    }
+    // 只在每次页面加载时验证一次 token 有效性
+    if (!_tokenValidated) {
+      try {
+        await axios.get('/api/me', { headers: { Authorization: `Bearer ${token}` } })
+        _tokenValidated = true
+      } catch {
+        localStorage.removeItem('token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('teacher')
+        next('/login')
+        return
+      }
+    }
+    next()
   } else {
+    if (token) _tokenValidated = false // 退出登录后重置
     next()
   }
 })
