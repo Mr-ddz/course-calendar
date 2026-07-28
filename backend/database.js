@@ -308,4 +308,11 @@ if (hasUsernameCol) {
   console.log(`🗑️ 已删除 teachers 表的 username 字段`);
 }
 
+// ========== 9. expires_at 字段（收费功能：账号过期时间） ==========
+const hasExpiresCol = db.prepare(`SELECT COUNT(*) as cnt FROM pragma_table_info('teachers') WHERE name='expires_at'`).get().cnt > 0;
+if (!hasExpiresCol) {
+  db.exec(`ALTER TABLE teachers ADD COLUMN expires_at TEXT DEFAULT NULL`);
+  console.log(`⏰ 已添加 teachers 表的 expires_at 字段`);
+}
+
 module.exports = db;

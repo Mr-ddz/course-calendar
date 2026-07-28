@@ -159,17 +159,22 @@ app.post('/api/login', (req, res) => {
     if (identity === 'admin') {
       // admin (id=1) 通过名称登录
       teacher = db.prepare(
-        `SELECT id, name, email, source, status, role FROM teachers WHERE name = '\u7ba1\u7406\u5458' AND password = ? AND status = 'active'`
+        `SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE name = '\u7ba1\u7406\u5458' AND password = ? AND status = 'active'`
       ).get(hash);
     } else {
       // 其他用户通过邮箱登录
       teacher = db.prepare(
-        `SELECT id, name, email, source, status, role FROM teachers WHERE email = ? AND password = ? AND status = 'active'`
+        `SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE email = ? AND password = ? AND status = 'active'`
       ).get(identity, hash);
     }
 
     if (!teacher) {
       return res.status(401).json({ error: '邮箱或密码错误' });
+    }
+
+    // 检查账号是否过期
+    if (teacher.expires_at && new Date(teacher.expires_at) < new Date()) {
+      return res.status(403).json({ error: '账号已过期，请联系管理员续费' });
     }
 
     // 生成 access token（2小时）+ refresh token（7天）
@@ -1419,7 +1424,7 @@ app.put('/api/admin/teachers/:id', (req, res) => {
       const target = db.prepare(`SELECT id, managed_by FROM teachers WHERE id = ?`).get(id);
       if (!target || target.managed_by !== req.teacher.id) return res.status(403).json({ error: '无权操作该教师' });
     }
-    const { status, name, password, role } = req.body;
+    const { status, name, password, role, expires_at } = req.body;
     const updates = [];
     const params = [];
     const isResetPwd = !!password; // 记录是否在重置密码
@@ -1427,6 +1432,7 @@ app.put('/api/admin/teachers/:id', (req, res) => {
     if (name) { updates.push('name = ?'); params.push(name); }
     if (password) { updates.push('password = ?'); params.push(crypto.createHash('sha256').update(password).digest('hex')); }
     if (role) { updates.push('role = ?'); params.push(role); }
+    if (expires_at !== undefined) { updates.push('expires_at = ?'); params.push(expires_at); }
     if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);

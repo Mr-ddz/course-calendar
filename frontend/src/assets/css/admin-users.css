@@ -66,6 +66,8 @@
 .btn-resetpwd:hover { color: #fff !important; border-color: #8c8c8c; background: #8c8c8c; }
 .btn-delete { color: #ff4d4f; border-color: #ffccc7; background: #fff2f0; }
 .btn-delete:hover { color: #fff !important; border-color: #ff4d4f; background: #ff4d4f; }
+.btn-expires { color: #fa8c16; border-color: #ffd591; background: #fff7e6; }
+.btn-expires:hover { color: #fff !important; border-color: #fa8c16; background: #fa8c16; }
 .change-role-info { font-size: 14px; color: #606266; line-height: 1.6; }
 .reset-pwd-info {
   font-size: 14px;
