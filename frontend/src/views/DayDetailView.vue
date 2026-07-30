@@ -540,15 +540,19 @@ function goBack() {
 
 function changeDay(delta) {
   dateStr.value = dayjs(dateStr.value).add(delta, 'day').format('YYYY-MM-DD')
-  router.replace('/app/day/' + dateStr.value)
-  loadCourses()
+  let path = '/app/day/' + dateStr.value
+  if (dayTeacherId.value) path += '?teacher_id=' + dayTeacherId.value
+  router.replace(path)
+  loadCourses(dayTeacherId.value || undefined)
   nextTick(() => scrollToSuitable())
 }
 
 function backToToday() {
   dateStr.value = todayStr
-  router.replace('/app/day/' + todayStr)
-  loadCourses()
+  let path = '/app/day/' + todayStr
+  if (dayTeacherId.value) path += '?teacher_id=' + dayTeacherId.value
+  router.replace(path)
+  loadCourses(dayTeacherId.value || undefined)
   nextTick(() => scrollToSuitable())
 }
 
@@ -800,7 +804,7 @@ function getCourseStyle(course) {
 watch(() => route.params.date, (newDate) => {
   if (newDate && newDate !== dateStr.value) {
     dateStr.value = newDate
-    loadCourses()
+    loadCourses(dayTeacherId.value || undefined)
     nextTick(() => scrollToSuitable())
   }
 })
