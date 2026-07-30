@@ -11,7 +11,7 @@
         <el-button size="small" style="margin-left:12px" @click="backToToday">今天</el-button>
         <el-select v-if="showTeacherFilter" v-model="selectedTeacherId" size="small" style="margin-left:12px;width:140px" placeholder="全部教师" clearable @change="loadMonthCourses">
           <el-option label="全部教师" value="" />
-          <el-option v-for="t in teacherOptions" :key="t.id" :label="t.name" :value="t.id" />
+          <el-option v-for="t in teacherOptions" :key="t.id" :label="getTeacherLabel(t)" :value="t.id" />
         </el-select>
       </div>
       <div class="cal-grid">
@@ -186,7 +186,17 @@ function changeMonth(delta) {
 
 function goToDay(dateStr) {
   activeDate.value = dateStr
-  router.push('/app/day/' + dateStr)
+  let path = '/app/day/' + dateStr
+  if (selectedTeacherId.value) path += '?teacher_id=' + selectedTeacherId.value
+  router.push(path)
+}
+
+function getTeacherLabel(t) {
+  if (teacherRole === 'super_admin') {
+    if (t.role === 'manager') return t.name + '（管理员）'
+    if (t.manager_name) return t.name + '（' + t.manager_name + '）'
+  }
+  return t.name
 }
 
 function backToToday() {

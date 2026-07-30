@@ -17,6 +17,12 @@
           <el-button @click="changeDay(1)">后一天 &gt;</el-button>
         </el-button-group>
         <div class="detail-nav-date">{{ dayTitle }}</div>
+        <div v-if="showDayTeacherFilter" style="margin-left:12px">
+          <el-select v-model="dayTeacherId" placeholder="全部教师" clearable size="small" style="width:140px" @change="onDayTeacherChange">
+            <el-option label="全部教师" value="" />
+            <el-option v-for="t in dayTeacherOptions" :key="t.id" :label="getTeacherLabel(t)" :value="String(t.id)" />
+          </el-select>
+        </div>
         <div class="detail-stats">
           <el-tag type="info" size="small">课程: {{ courses.length }}</el-tag>
           <el-tag type="success" size="small" style="margin-left:6px">{{ totalDuration }}</el-tag>
@@ -245,6 +251,22 @@ const teacherName = teacherInfo.name || ''
 const isAdmin = computed(() => teacherInfo.id === 1)
 const isSuperAdmin = teacherInfo.role === 'super_admin'
 const teacherRole = teacherInfo.role || 'teacher'
+const showDayTeacherFilter = teacherRole === 'super_admin' || teacherRole === 'manager'
+const dayTeacherId = ref('')
+const dayTeacherOptions = ref([])
+
+function getTeacherLabel(t) {
+  if (teacherRole === 'super_admin') {
+    if (t.role === 'manager') return t.name + '（管理员）'
+    if (t.manager_name) return t.name + '（' + t.manager_name + '）'
+  }
+  return t.name
+}
+
+function onDayTeacherChange(val) {
+  loadCourses(val || undefined)
+}
+
 const isEditingNoMgrTeacher = computed(() => {
   return isSuperAdmin && isEditing.value && !courseForm.value.manager_id
 })
@@ -292,6 +314,18 @@ async function loadTeachersForCourse(managedBy) {
     if (managedBy) params.managed_by = managedBy
     const res = await getTeachers(params)
     teacherOptions.value = res.data.data || []
+  } catch {}
+}
+
+async function loadDayTeacherOptions() {
+  if (!showDayTeacherFilter) return
+  try {
+    const res = await getTeachers()
+    dayTeacherOptions.value = (res.data.data || []).filter(t => t.role === 'teacher' || t.role === 'manager')
+    if (route.query.teacher_id) {
+      dayTeacherId.value = String(route.query.teacher_id)
+      await loadCourses(route.query.teacher_id)
+    }
   } catch {}
 }
 
@@ -529,9 +563,11 @@ function scrollToSuitable() {
   }
 }
 
-async function loadCourses() {
+async function loadCourses(teacherId) {
   try {
-    const res = await getCourses(dateStr.value)
+    const params = {}
+    if (teacherId) params.teacher_id = teacherId
+    const res = await getCourses(dateStr.value, params)
     courses.value = res.data.data || []
   } catch (err) {
     console.error('加载课程失败:', err)
@@ -771,8 +807,8 @@ watch(() => route.params.date, (newDate) => {
 
 onMounted(async () => {
   dateStr.value = route.params.date || dayjs().format('YYYY-MM-DD')
-  await loadCourses()
-  await Promise.all([loadManagerOptions(), loadTeachersForCourse()])
+  if (!route.query.teacher_id) await loadCourses()
+  await Promise.all([loadManagerOptions(), loadDayTeacherOptions(), loadTeachersForCourse()])
   // 从统计页跳转过来时，自动打开对应课程的编辑弹窗
   if (route.query.edit) {
     const target = courses.value.find(c => c.id == route.query.edit)
