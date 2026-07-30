@@ -167,8 +167,8 @@ export function getStudentTransactions(id) {
 }
 
 // ===== 课程 =====
-export function getCourses(date) {
-  return api.get('/courses', { params: { date } })
+export function getCourses(date, extraParams) {
+  return api.get('/courses', { params: { date, ...extraParams } })
 }
 export function getCoursesRange(startDate, endDate) {
   return api.get('/courses/range', { params: { start_date: startDate, end_date: endDate } })
