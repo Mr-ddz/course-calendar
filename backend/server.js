@@ -224,12 +224,12 @@ app.get("/api/teachers", (req, res) => {
     if (isSuperAdmin(req.teacher)) {
       const { managed_by } = req.query;
       if (managed_by) {
-        teachers = db.prepare(`SELECT id, name, role, managed_by FROM teachers WHERE managed_by = ? AND role != 'super_admin' ORDER BY id`).all(managed_by);
+        teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.managed_by = ? AND t.role != 'super_admin' ORDER BY t.id`).all(managed_by);
       } else {
-        teachers = db.prepare(`SELECT id, name, role, managed_by FROM teachers WHERE role != 'super_admin' ORDER BY id`).all();
+        teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.role != 'super_admin' ORDER BY t.id`).all();
       }
     } else if (getRole(req.teacher) === "manager") {
-      teachers = db.prepare(`SELECT id, name, role, managed_by FROM teachers WHERE managed_by = ? ORDER BY id`).all(req.teacher.id);
+      teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.managed_by = ? ORDER BY t.id`).all(req.teacher.id);
     } else {
       teachers = [{ id: req.teacher.id, name: req.teacher.name, role: req.teacher.role || "teacher", managed_by: null }];
     }
@@ -262,7 +262,8 @@ app.get('/api/students', (req, res) => {
     conditions.push(stuAccess.sql);
     params.push(...stuAccess.params);
     if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
-    if (req.query.teacher_id) { conditions.push("s.teacher_id = ?"); params.push(req.query.teacher_id); }
+    const stf = resolveTeacherFilter(req.query.teacher_id, "s");
+    if (stf) { conditions.push(stf.sql); params.push(...stf.params); }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
     const { total } = db.prepare(`${countSql} ${whereClause}`).get(...params);
@@ -539,10 +540,24 @@ function accessibleClause(user, tableAlias) {
   if (isAdmin(user) || isSuperAdmin(user)) return { sql: '1=1', params: [] };
   if (getRole(user) === 'manager') {
     const ids = db.prepare(`SELECT id FROM teachers WHERE managed_by = ?`).all(user.id).map(r => r.id);
-    if (ids.length === 0) return { sql: '1=0', params: [] };
+    ids.push(user.id); // 包含管理员自己的课程
     return { sql: `${t}.teacher_id IN (${ids.map(() => '?').join(',')})`, params: ids };
   }
   return { sql: `${t}.teacher_id = ?`, params: [user.id] };
+}
+
+// 展开教师筛选：如果是管理员，展开为其名下所有教师的 IN 条件
+function resolveTeacherFilter(teacherId, alias) {
+  const a = alias || "c";
+  if (!teacherId) return null;
+  const target = db.prepare(`SELECT id, role FROM teachers WHERE id = ?`).get(teacherId);
+  if (!target) return null;
+  if (target.role === "manager") {
+    const ids = db.prepare(`SELECT id FROM teachers WHERE managed_by = ?`).all(target.id).map(r => r.id);
+    ids.push(target.id); // 包含管理员自己的课程
+    return { sql: `${a}.teacher_id IN (${ids.map(() => "?").join(",")})`, params: ids };
+  }
+  return { sql: `${a}.teacher_id = ?`, params: [parseInt(teacherId)] };
 }
 
 // 获取指定日期的课程
@@ -554,10 +569,8 @@ app.get('/api/courses', (req, res) => {
     const cAccess = accessibleClause(req.teacher, 'c');
     let courseSql = `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE ${cAccess.sql} AND c.date = ?`;
     const courseParams = [...cAccess.params, date];
-    if (req.query.teacher_id) {
-      courseSql += ' AND c.teacher_id = ?';
-      courseParams.push(req.query.teacher_id);
-    }
+    const tf = resolveTeacherFilter(req.query.teacher_id);
+    if (tf) { courseSql += ' AND ' + tf.sql; courseParams.push(...tf.params); }
     courseSql += ' ORDER BY c.teacher_id, c.start_time ASC';
     courses = db.prepare(courseSql).all(...courseParams);
     res.json({ data: courses });
@@ -578,10 +591,8 @@ app.get('/api/courses/range', (req, res) => {
     const rAccess = accessibleClause(req.teacher, 'c');
     let rangeSql = `SELECT c.*, t.name as teacher_name FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id WHERE ${rAccess.sql} AND c.date BETWEEN ? AND ?`;
     const rangeParams = [...rAccess.params, start_date, end_date];
-    if (req.query.teacher_id) {
-      rangeSql += ' AND c.teacher_id = ?';
-      rangeParams.push(req.query.teacher_id);
-    }
+    const tf = resolveTeacherFilter(req.query.teacher_id);
+    if (tf) { rangeSql += ' AND ' + tf.sql; rangeParams.push(...tf.params); }
     rangeSql += ' ORDER BY c.date ASC, c.start_time ASC';
     courses = db.prepare(rangeSql).all(...rangeParams);
     res.json({ data: courses });
@@ -1103,10 +1114,8 @@ app.get('/api/courses/search', (req, res) => {
       conditions.push('c.date <= ?');
       params.push(end_date);
     }
-    if (teacher_id) {
-      conditions.push('c.teacher_id = ?');
-      params.push(teacher_id);
-    }
+    const tf = resolveTeacherFilter(teacher_id);
+    if (tf) { conditions.push(tf.sql); params.push(...tf.params); }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -1149,10 +1158,8 @@ app.get('/api/courses/statistics', (req, res) => {
       dateFilter.push('c.date <= ?');
       params.push(end_date);
     }
-    if (teacher_id) {
-      dateFilter.push('c.teacher_id = ?');
-      params.push(teacher_id);
-    }
+    const tf = resolveTeacherFilter(teacher_id, 'c');
+    if (tf) { dateFilter.push(tf.sql); params.push(...tf.params); }
     // managed_by → 展开为 teacher_id 列表
     let managedTeacherIds = null;
     if (managed_by) {
@@ -1209,10 +1216,8 @@ app.get('/api/courses/statistics', (req, res) => {
     const stuAccess = accessibleClause(req.teacher, 's');
     let stuWhere = stuAccess.sql;
     let stuParams = [...stuAccess.params];
-    if (teacher_id) {
-      stuWhere += ' AND s.teacher_id = ?';
-      stuParams.push(teacher_id);
-    }
+    const stf = resolveTeacherFilter(teacher_id, 's');
+    if (stf) { stuWhere += ' AND ' + stf.sql; stuParams.push(...stf.params); }
     if (managedTeacherIds) {
       const ph = managedTeacherIds.map(() => '?').join(',');
       stuWhere += ' AND s.teacher_id IN (' + ph + ')';
