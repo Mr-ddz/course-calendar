@@ -515,9 +515,9 @@ app.get('/api/students/recent-fee', (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: '请提供学生 ID' });
 
-    const student = db.prepare(`SELECT hourly_fee, color FROM students WHERE id = ?`).get(id);
+    const student = db.prepare(`SELECT hourly_fee FROM students WHERE id = ?`).get(id);
     if (student && student.hourly_fee > 0) {
-      return res.json({ data: { hourly_fee: student.hourly_fee, color: student.color || '#409EFF' } });
+      return res.json({ data: { hourly_fee: student.hourly_fee, color: '#409EFF' } });
     }
 
     const course = db.prepare(
