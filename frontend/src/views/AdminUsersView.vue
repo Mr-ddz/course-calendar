@@ -60,7 +60,7 @@
           <template #default="{ row }">
             <div class="action-btns">
               <el-button v-if="row.status === 'pending'" class="btn-approve" size="small" @click="approveUser(row)">通过</el-button>
-              <el-button v-if="row.status === 'pending'" class="btn-reject" size="small" @click="rejectUser(row)">拒绝</el-button>
+              <el-button v-if="row.status === 'pending'" class="btn-reject" size="small" @click="rejectUser(row)">拒绝并删除</el-button>
               <el-button v-if="row.status === 'active' && row.id !== 1" class="btn-disable" size="small" @click="toggleStatus(row, 'disabled')">禁用</el-button>
               <el-button v-if="row.status === 'disabled'" class="btn-enable" size="small" @click="toggleStatus(row, 'active')">启用</el-button>
               <el-button v-if="isSuperAdmin && row.status === 'active' && row.id !== 1" class="btn-role" size="small" @click="openChangeRoleDialog(row)">修改角色</el-button>
@@ -302,9 +302,13 @@ async function approveUser(row) {
 
 async function rejectUser(row) {
   try {
-    await ElMessageBox.confirm(`确定拒绝「${row.name}」的注册申请吗？\n该用户将被删除。`, '审核', { type: 'warning' })
-    await adminUpdateTeacher(row.id, { status: 'disabled' })
-    ElMessage.success('已拒绝')
+    await ElMessageBox.confirm(
+      `确定拒绝并删除「${row.name}」吗？\n该账号将被彻底删除，无法恢复。`,
+      '拒绝申请',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await adminDeleteTeacher(row.id)
+    ElMessage.success('已拒绝并删除')
     loadTeachers()
   } catch { /* cancel */ }
 }

@@ -159,7 +159,7 @@ app.post('/api/login', (req, res) => {
     if (identity === 'admin') {
       // admin (id=1) 通过名称登录
       teacher = db.prepare(
-        `SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE name = '\u7ba1\u7406\u5458' AND password = ? AND status = 'active'`
+        `SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE id = 1 AND password = ? AND status = 'active'`
       ).get(hash);
     } else {
       // 其他用户通过邮箱登录
