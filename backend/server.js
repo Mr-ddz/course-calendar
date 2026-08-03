@@ -1265,7 +1265,7 @@ app.post('/api/register', (req, res) => {
     const finalRole = role === 'manager' ? 'manager' : 'teacher';
     db.prepare(
       `INSERT INTO teachers (name, password, email, source, status, role) VALUES (?, ?, ?, 'email', 'pending', ?)`
-    ).run(name, name, hash, email, finalRole);
+    ).run(name, hash, email, finalRole);
 
     // 给系统邮箱发送新用户注册通知
     if (transporter) {
