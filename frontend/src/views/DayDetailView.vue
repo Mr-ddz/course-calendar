@@ -164,7 +164,7 @@
             <template #append>元</template>
           </el-input>
         </el-form-item>
-        <el-form-item label="重复" label-for="course_repeat">
+        <el-form-item v-if="!isEditing" label="重复" label-for="course_repeat">
           <el-radio-group id="course_repeat" v-model="courseForm.repeat_type">
             <el-radio value="none">不重复</el-radio>
             <el-radio value="weekly">每周（{{ weekDayOfDate(courseForm.date) }}）</el-radio>
@@ -174,7 +174,7 @@
             📌 将在每周一至周五的 {{ courseForm.startTime }} 自动创建课程，跳过法定节假日
           </div>
         </el-form-item>
-        <el-form-item v-if="courseForm.repeat_type !== 'none'" label="截止日期" label-for="course_end_date">
+        <el-form-item v-if="!isEditing && courseForm.repeat_type !== 'none'" label="截止日期" label-for="course_end_date">
           <el-date-picker
             id="course_end_date"
             v-model="courseForm.end_date"
