@@ -159,7 +159,7 @@ app.post('/api/login', (req, res) => {
     if (identity === 'admin') {
       // admin (id=1) 通过名称登录
       teacher = db.prepare(
-        `SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE name = '\u7ba1\u7406\u5458' AND password = ? AND status = 'active'`
+        `SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE id = 1 AND password = ? AND status = 'active'`
       ).get(hash);
     } else {
       // 其他用户通过邮箱登录
@@ -224,12 +224,12 @@ app.get("/api/teachers", (req, res) => {
     if (isSuperAdmin(req.teacher)) {
       const { managed_by } = req.query;
       if (managed_by) {
-        teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.managed_by = ? AND t.role != 'super_admin' ORDER BY t.id`).all(managed_by);
+        teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.managed_by = ? AND t.role != 'super_admin' AND t.status = 'active' ORDER BY t.id`).all(managed_by);
       } else {
-        teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.role != 'super_admin' ORDER BY t.id`).all();
+        teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.role != 'super_admin' AND t.status = 'active' ORDER BY t.id`).all();
       }
     } else if (getRole(req.teacher) === "manager") {
-      teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.managed_by = ? ORDER BY t.id`).all(req.teacher.id);
+      teachers = db.prepare(`SELECT t.id, t.name, t.role, t.managed_by, (SELECT m.name FROM teachers m WHERE m.id = t.managed_by) as manager_name FROM teachers t WHERE t.managed_by = ? AND t.status = 'active' ORDER BY t.id`).all(req.teacher.id);
     } else {
       teachers = [{ id: req.teacher.id, name: req.teacher.name, role: req.teacher.role || "teacher", managed_by: null }];
     }
@@ -515,9 +515,9 @@ app.get('/api/students/recent-fee', (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: '请提供学生 ID' });
 
-    const student = db.prepare(`SELECT hourly_fee, color FROM students WHERE id = ?`).get(id);
+    const student = db.prepare(`SELECT hourly_fee FROM students WHERE id = ?`).get(id);
     if (student && student.hourly_fee > 0) {
-      return res.json({ data: { hourly_fee: student.hourly_fee, color: student.color || '#409EFF' } });
+      return res.json({ data: { hourly_fee: student.hourly_fee, color: '#409EFF' } });
     }
 
     const course = db.prepare(
@@ -703,12 +703,27 @@ function generateWeekdaysCourses(teacherId, courseData, firstInsertId, startDate
 }
 
 
-// ===== 辅助函数：生成每周工作日重复课程 =====
-function generateWeekdaysCourses(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description, endDateStr) {
+// ===== 辅助函数：通用重复生成（daily / biweekly / monthly / custom / weekly多周几） =====
+function generateGenericRepeat(teacherId, courseData, firstInsertId, startDateStr, start_time, end_time, color, description, opts) {
   const { student_name, grade, hourly_fee, attended, student_id } = courseData;
+  const repeat_type = opts.repeat_type || 'custom';
+  const repeat_weekdays = opts.repeat_weekdays || null;                     // 如 "1,3" 周几列表（周一=1..周日=7）
+  const repeat_day_of_month = opts.repeat_day_of_month || null;             // 原样保存（可 "1,5,7" 多选）
+  const daysOfMonth = repeat_day_of_month ? String(repeat_day_of_month).split(',').map(n => parseInt(n)).filter(n => n >= 1 && n <= 31) : null; // 每月第几日列表
+  const repeat_interval = Math.max(1, parseInt(opts.repeat_interval) || 1); // 间隔 N
+  const repeat_unit = opts.repeat_unit || null;                             // day/week/month
+  const endDateStr = opts.end_date || null;
+  const weekdays = repeat_weekdays ? repeat_weekdays.split(',').map(Number) : null;
+
   const insertStmt = db.prepare(
-    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id, end_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'weekdays', ?, ?)`
+    `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_group_id, end_date, repeat_weekdays, repeat_day_of_month, repeat_interval, repeat_unit)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const runInsert = (dateStr) => insertStmt.run(
+    teacherId, student_id || null, student_name, dateStr, start_time, end_time,
+    color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0,
+    attended ? 1 : 0, repeat_type, firstInsertId, endDateStr || null,
+    repeat_weekdays, repeat_day_of_month, repeat_interval, repeat_unit
   );
 
   const startDate = new Date(startDateStr);
@@ -716,31 +731,79 @@ function generateWeekdaysCourses(teacherId, courseData, firstInsertId, startDate
   if (!endDateStr) maxDate.setDate(maxDate.getDate() + MAX_WEEKS * 7);
 
   const created = [{ id: firstInsertId, date: startDateStr }];
-  let current = new Date(startDate);
-  let count = 0;
-  const MAX_COURSES = 365;
 
-  while (count < MAX_COURSES) {
-    current.setDate(current.getDate() + 1);
-    const dateStr = current.toISOString().split('T')[0];
-    const dow = current.getDay();
-    if (current > maxDate) break;
+  // 计算下一个重复日期
+  function nextDate(from, prevDate) {
+    const d = prevDate ? new Date(prevDate) : new Date(from);
 
-    let shouldCreate = false;
-    if (dow >= 1 && dow <= 5) shouldCreate = true;
-
-    const hd = isWorkdayOrHoliday(dateStr);
-    if (hd === 'holiday') shouldCreate = false;
-    if (hd === 'workday') shouldCreate = true;
-
-    if (shouldCreate) {
-      const result = insertStmt.run(teacherId, student_id || null, student_name, dateStr, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, firstInsertId, endDateStr || null);
-      created.push({ id: result.lastInsertRowid, date: dateStr });
-      count++;
+    // 每天 / 自定义按天：间隔 N 天
+    if (repeat_type === 'daily' || (repeat_type === 'custom' && repeat_unit === 'day')) {
+      d.setDate(d.getDate() + repeat_interval);
+      return d;
     }
+
+    // 每月第 N 日 / 自定义按月（可多选 1-31 号）：间隔 N 月，某月没有该日则跳过该月
+    if (repeat_type === 'monthly' || (repeat_type === 'custom' && repeat_unit === 'month')) {
+      const days = daysOfMonth && daysOfMonth.length > 0 ? daysOfMonth : [d.getDate()];
+      // 周期序号 = 相对开始月的第几个 N 月周期（从 0 开始）
+      const startYearMonth = from.getFullYear() * 12 + from.getMonth();
+      const base = prevDate ? new Date(prevDate) : new Date(from);
+      const baseYearMonth = base.getFullYear() * 12 + base.getMonth();
+      const periodIndex = Math.floor((baseYearMonth - startYearMonth) / repeat_interval);
+      for (let attempt = 0; attempt < 24; attempt++) {
+        const period = periodIndex + attempt;
+        const targetYearMonth = startYearMonth + period * repeat_interval;
+        const y = Math.floor(targetYearMonth / 12);
+        const m = targetYearMonth % 12;
+        // 用 UTC 构造，避免 toISOString 时区偏移
+        const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getDate();
+        const validDays = days.filter(dd => dd <= daysInMonth).sort((a, b) => a - b);
+        for (const day of validDays) {
+          const candidate = new Date(Date.UTC(y, m, day));
+          if (candidate > base) return candidate;
+        }
+      }
+      d.setDate(d.getDate() + 1); // 极端情况下至少前进一天
+      return d;
+    }
+
+    // 周 / 双周 / 自定义按周：每 N 周的选定周几循环
+    if (!weekdays || weekdays.length === 0) {
+      d.setDate(d.getDate() + 7 * repeat_interval);
+      return d;
+    }
+    // 以开始日所在周一为第 0 周基准，只取第 0, N, 2N... 周内的选定周几
+    const startMon = new Date(from);
+    startMon.setDate(startMon.getDate() - ((startMon.getDay() === 0 ? 7 : startMon.getDay()) - 1));
+    const base = prevDate ? new Date(prevDate) : new Date(from);
+    for (let i = 1; i <= 7 * repeat_interval; i++) {
+      const check = new Date(base);
+      check.setDate(base.getDate() + i);
+      const dow = check.getDay() === 0 ? 7 : check.getDay();
+      if (!weekdays.includes(dow)) continue;
+      const checkMon = new Date(check);
+      checkMon.setDate(checkMon.getDate() - ((checkMon.getDay() === 0 ? 7 : checkMon.getDay()) - 1));
+      const weekDiff = Math.round((checkMon - startMon) / (7 * 24 * 3600 * 1000));
+      if (weekDiff % repeat_interval === 0) return check;
+    }
+    d.setDate(d.getDate() + 7 * repeat_interval);
+    return d;
+  }
+
+  let prev = null;
+  let count = 0;
+  const MAX_COURSES = 1000;
+  while (count < MAX_COURSES) {
+    const nd = nextDate(startDate, prev);
+    if (nd > maxDate) break;
+    const dateStr = nd.toISOString().split('T')[0];
+    const result = runInsert(dateStr);
+    created.push({ id: result.lastInsertRowid, date: dateStr });
+    prev = nd;
+    count++;
   }
   if (count >= MAX_COURSES) {
-    console.log(`⚠️ 工作日课程已超过上限 ${MAX_COURSES} 节，请检查截止日期`);
+    console.log(`⚠️ 重复课程生成超过上限 ${MAX_COURSES} 节，已停止（请检查截止日期）`);
   }
   return created;
 }
@@ -794,20 +857,33 @@ app.post('/api/courses', (req, res) => {
 
     // 先插入第一节课
     const result = db.prepare(
-      `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(finalTeacherId, student_id, student_name, date, start_time, end_time, color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0, attended ? 1 : 0, repeat_type || 'none');
+      `INSERT INTO courses (teacher_id, student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, repeat_weekdays, repeat_day_of_month, repeat_interval, repeat_unit, end_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      finalTeacherId, student_id, student_name, date, start_time, end_time,
+      color || '#409EFF', description || '', grade || '', parseFloat(hourly_fee) || 0,
+      attended ? 1 : 0, repeat_type || 'none',
+      req.body.repeat_weekdays || null,
+      req.body.repeat_day_of_month || null,
+      Math.max(1, parseInt(req.body.repeat_interval) || 1),
+      req.body.repeat_unit || null,
+      req.body.end_date || null
+    );
 
     const courseId = result.lastInsertRowid;
 
-    // 如果是每周重复，把第一节课也加入组，并生成未来52周的课程
-    if (repeat_type === 'weekly' || repeat_type === 'weekdays') {
+    // 如果是重复课程，把第一节课也加入组，并生成未来的课程
+    if (repeat_type && repeat_type !== 'none') {
       db.prepare(`UPDATE courses SET repeat_group_id = ? WHERE id = ?`).run(courseId, courseId);
       const courseData = { student_name, grade, hourly_fee, attended, student_id };
       if (repeat_type === 'weekdays') {
         generateWeekdaysCourses(finalTeacherId, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
-      } else {
+      } else if (repeat_type === 'weekly' && !req.body.repeat_weekdays) {
+        // 旧式每周：不带周几列表，维持原有按 7 天递增逻辑
         generateWeeklyCourses(finalTeacherId, courseData, courseId, date, start_time, end_time, color, description, req.body.end_date);
+      } else {
+        // weekly(多周几) / daily / biweekly / monthly / custom
+        generateGenericRepeat(finalTeacherId, courseData, courseId, date, start_time, end_time, color, description, req.body);
       }
     }
 
@@ -832,7 +908,16 @@ app.put('/api/courses/:id', (req, res) => {
     }
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
 
-    const { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, update_all_future } = req.body;
+    const { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, update_all_future, teacher_id } = req.body;
+
+    // 解析最终教师 id（super_admin/manager 可指定给其他教师）
+    let finalTeacherId = existing.teacher_id || req.teacher.id;
+    if (teacher_id && isSuperAdmin(req.teacher)) {
+      finalTeacherId = parseInt(teacher_id);
+    } else if (teacher_id && getRole(req.teacher) === 'manager') {
+      const ok = db.prepare(`SELECT id FROM teachers WHERE id = ? AND managed_by = ?`).get(teacher_id, req.teacher.id);
+      if (ok) finalTeacherId = parseInt(teacher_id);
+    }
 
     // 处理学生关联更新
     let finalName = student_name || existing.student_name;
@@ -923,8 +1008,21 @@ app.put('/api/courses/:id', (req, res) => {
         };
         if (repeat_type === 'weekdays') {
           generateWeekdaysCourses(finalTeacherId, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
-        } else {
+        } else if (repeat_type === 'weekly' && !req.body.repeat_weekdays) {
+          // 旧式每周：不带周几列表，维持原有按 7 天递增逻辑
           generateWeeklyCourses(finalTeacherId, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, newEndDate);
+        } else {
+          // weekly(多周几) / daily / biweekly / monthly / custom
+          // 未传的重复参数沿用原课程的设置，避免切换/编辑时丢失间隔与周几
+          const repeatOpts = {
+            ...req.body,
+            end_date: newEndDate,
+            repeat_weekdays: req.body.repeat_weekdays !== undefined ? req.body.repeat_weekdays : existing.repeat_weekdays,
+            repeat_day_of_month: req.body.repeat_day_of_month !== undefined ? req.body.repeat_day_of_month : existing.repeat_day_of_month,
+            repeat_interval: req.body.repeat_interval !== undefined ? req.body.repeat_interval : existing.repeat_interval,
+            repeat_unit: req.body.repeat_unit !== undefined ? req.body.repeat_unit : existing.repeat_unit
+          };
+          generateGenericRepeat(finalTeacherId, courseData, groupId, startFrom, start_time || existing.start_time, end_time || existing.end_time, color || existing.color, description !== undefined ? description : existing.description, repeatOpts);
         }
 
         const courses = db.prepare(`SELECT * FROM courses WHERE repeat_group_id = ? ORDER BY date ASC`).all(groupId);
@@ -970,6 +1068,7 @@ app.put('/api/courses/:id', (req, res) => {
     db.prepare(
       `UPDATE courses SET student_name = ?, student_id = ?, date = ?, start_time = ?, end_time = ?,
        color = ?, description = ?, grade = ?, hourly_fee = ?, attended = ?, repeat_type = ?,
+       repeat_weekdays = ?, repeat_day_of_month = ?, repeat_interval = ?, repeat_unit = ?,
        end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(
       finalName, finalStudentId,
@@ -982,6 +1081,10 @@ app.put('/api/courses/:id', (req, res) => {
       hourly_fee !== undefined ? parseFloat(hourly_fee) || 0 : existing.hourly_fee,
       attended !== undefined ? (attended ? 1 : 0) : existing.attended,
       finalRepeatType,
+      req.body.repeat_weekdays !== undefined ? req.body.repeat_weekdays : existing.repeat_weekdays,
+      req.body.repeat_day_of_month !== undefined ? req.body.repeat_day_of_month || null : existing.repeat_day_of_month,
+      req.body.repeat_interval !== undefined ? Math.max(1, parseInt(req.body.repeat_interval) || 1) : existing.repeat_interval,
+      req.body.repeat_unit !== undefined ? req.body.repeat_unit : existing.repeat_unit,
       endDateVal,
       id
     );
@@ -1265,7 +1368,7 @@ app.post('/api/register', (req, res) => {
     const finalRole = role === 'manager' ? 'manager' : 'teacher';
     db.prepare(
       `INSERT INTO teachers (name, password, email, source, status, role) VALUES (?, ?, ?, 'email', 'pending', ?)`
-    ).run(name, name, hash, email, finalRole);
+    ).run(name, hash, email, finalRole);
 
     // 给系统邮箱发送新用户注册通知
     if (transporter) {

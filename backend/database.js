@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'data');
 
 // 确保数据库目录存在
@@ -70,7 +71,11 @@ if (tableExists) {
     repeat_type: "TEXT DEFAULT 'none'",
     repeat_group_id: "INTEGER DEFAULT NULL",
     student_id: "INTEGER DEFAULT NULL",
-    end_date: "TEXT DEFAULT NULL"
+    end_date: "TEXT DEFAULT NULL",
+    repeat_weekdays: "TEXT DEFAULT NULL",
+    repeat_day_of_month: "INTEGER DEFAULT NULL",
+    repeat_interval: "INTEGER DEFAULT 1",
+    repeat_unit: "TEXT DEFAULT NULL"
   };
   for (const [name, def] of Object.entries(fieldDefs)) {
     if (!colNames.includes(name)) {
@@ -95,6 +100,11 @@ if (tableExists) {
       attended INTEGER DEFAULT 0,
       repeat_type TEXT DEFAULT 'none',
       repeat_group_id INTEGER DEFAULT NULL,
+      end_date TEXT DEFAULT NULL,
+      repeat_weekdays TEXT DEFAULT NULL,
+      repeat_day_of_month INTEGER DEFAULT NULL,
+      repeat_interval INTEGER DEFAULT 1,
+      repeat_unit TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
