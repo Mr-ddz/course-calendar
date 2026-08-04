@@ -47,6 +47,29 @@
   text-align: center;
 }
 
+/* 添加课程按钮：推到行最右，与下方表格右对齐 */
+.cal-nav .btn-add-course {
+  margin-left: auto;
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 9px 20px;
+  /* 恢复 primary 蓝色样式（.cal-nav .el-button 默认覆盖为白底） */
+  --el-button-bg-color: #409eff;
+  --el-button-border-color: #409eff;
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: #66b1ff;
+  --el-button-hover-border-color: #66b1ff;
+  --el-button-hover-text-color: #fff;
+  --el-button-active-bg-color: #3a8ee6;
+  --el-button-active-border-color: #3a8ee6;
+  --el-button-active-text-color: #fff;
+}
+.btn-add-plus {
+  font-size: 16px;
+  font-weight: 700;
+  margin-right: 2px;
+}
+
 /* 月历网格 */
 .cal-grid {
   user-select: none;
@@ -195,6 +218,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.timetable-header-right {
+  display: flex;
+  align-items: center;
 }
 .timetable-switch {
   display: flex;
