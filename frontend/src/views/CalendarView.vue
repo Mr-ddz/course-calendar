@@ -13,6 +13,7 @@
           <el-option label="全部教师" value="" />
           <el-option v-for="t in teacherOptions" :key="t.id" :label="getTeacherLabel(t)" :value="t.id" />
         </el-select>
+        <el-button type="primary" class="btn-add-course" @click="showAddDialog = true"><span class="btn-add-plus">＋</span> 添加课程</el-button>
       </div>
       <div class="cal-grid">
         <div class="cal-weekdays">
@@ -40,7 +41,7 @@
                   :key="si"
                   class="cal-student-tag"
                   :style="{ background: s.color + '30', color: s.color }"
-                ><span class="tag-name">{{ s.name }}</span><span v-if="s.teacherName" class="tag-teacher">{{ s.teacherName }}</span> <span class="tag-time">{{ s.time }}</span><span v-if="s.repeatType === 'weekly'" class="tag-repeat">🔄</span><span v-if="s.repeatType === 'weekdays'" class="tag-repeat">📆</span></span>
+                ><span class="tag-name">{{ s.name }}</span><span v-if="s.teacherName" class="tag-teacher">{{ s.teacherName }}</span> <span class="tag-time">{{ s.time }}</span><span v-if="s.repeatType && s.repeatType !== 'none' && s.repeatType !== 'weekdays'" class="tag-repeat">🔄</span><span v-if="s.repeatType === 'weekdays'" class="tag-repeat">📆</span></span>
                 <span v-if="day.students.length > 3" class="cal-student-more" @click.stop="goToDay(day.dateStr)">+{{ day.students.length - 3 }} 更多 →</span>
               </div>
             </template>
@@ -65,6 +66,8 @@
           </div>
         </div>
       </div>
+      <CourseDialog v-model="showAddDialog" @success="loadMonthCourses" />
+
       <div class="timetable-scroll">
         <el-table
           :data="timetableRows"
@@ -87,7 +90,7 @@
               >
                 <span :class="['cell-name', { 'cell-name--hidden': hideStudentName }]">{{ course.student_name }}</span>
                 <span class="cell-time">{{ course.start_time }}-{{ course.end_time }}</span>
-                <span v-if="course.repeat_type === 'weekly'" class="cell-repeat">🔄</span>
+                <span v-if="course.repeat_type && course.repeat_type !== 'none' && course.repeat_type !== 'weekdays'" class="cell-repeat">🔄</span>
                 <span v-if="course.repeat_type === 'weekdays'" class="cell-repeat">📆</span>
               </div>
             </template>
@@ -105,6 +108,7 @@ import dayjs from 'dayjs'
 import { getHoliday, loadHolidays } from '../assets/js/holidays.js'
 import { getTeachers } from '../api/index.js'
 import api from '../api/index.js'
+import CourseDialog from '../components/CourseDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -119,6 +123,7 @@ const monthCourses = ref([])
 const hideStudentName = ref(false)
 const holidayVersion = ref(0)
 const selectedWeek = ref(1)
+const showAddDialog = ref(false)
 
 // 当前教师
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
