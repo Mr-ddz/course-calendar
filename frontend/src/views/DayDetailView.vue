@@ -50,7 +50,7 @@
     <div class="timeline-wrapper" ref="timelineWrapper">
       <div class="timeline">
         <div
-          v-for="hour in 18"
+          v-for="hour in 19"
           :key="hour"
           class="hour-slot"
           :style="{ height: HOUR_HEIGHT + 'px' }"
