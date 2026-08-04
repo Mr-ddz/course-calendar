@@ -53,10 +53,16 @@
     <div class="timetable-wrapper">
       <div class="timetable-header">
         <h2 class="timetable-title"><el-icon><Calendar /></el-icon> {{ monthLabel }}（周）课程安排</h2>
-        <div class="timetable-switch">
-          <span class="switch-label" :class="{ 'is-active': !hideStudentName }">姓名</span>
-          <el-switch v-model="hideStudentName" size="small" style="margin: 0 4px;" />
-          <span class="switch-label" :class="{ 'is-active': hideStudentName }">隐藏</span>
+        <div class="timetable-header-right">
+          <el-select v-model="selectedWeek" size="small" style="width:160px;margin-right:12px" @change="onWeekChange">
+            <el-option label="全部" :value="0" />
+            <el-option v-for="w in weekOptions" :key="w.index" :label="w.label" :value="w.index" />
+          </el-select>
+          <div class="timetable-switch">
+            <span class="switch-label" :class="{ 'is-active': !hideStudentName }">姓名</span>
+            <el-switch v-model="hideStudentName" size="small" style="margin: 0 4px;" />
+            <span class="switch-label" :class="{ 'is-active': hideStudentName }">隐藏</span>
+          </div>
         </div>
       </div>
       <div class="timetable-scroll">
@@ -104,8 +110,7 @@ const router = useRouter()
 const route = useRoute()
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六']
-const weekDayHeaders = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-const timeSlots = Array.from({ length: 18 }, (_, i) => i + 6) // 06:00 - 23:00
+const timeSlots = Array.from({ length: 19 }, (_, i) => i + 6) // 06:00 - 24:00
 const todayStr = dayjs().format('YYYY-MM-DD')
 
 const currentMonth = ref(dayjs().format('YYYY-MM'))
@@ -113,6 +118,7 @@ const activeDate = ref(todayStr)
 const monthCourses = ref([])
 const hideStudentName = ref(false)
 const holidayVersion = ref(0)
+const selectedWeek = ref(1)
 
 // 当前教师
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
@@ -132,6 +138,44 @@ async function loadTeachers() {
 }
 
 const monthLabel = computed(() => dayjs(currentMonth.value).format('YYYY 年 M 月'))
+
+// 本月横跨的周（周一开始）
+// 周课程表表头：选中周时显示 周一（8.4），全部时只显示 周一
+const weekDayHeaders = computed(() => {
+  const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+  if (selectedWeek.value <= 0) return names
+  const wk = weekOptions.value[selectedWeek.value - 1]
+  if (!wk) return names
+  const start = dayjs(wk.start)
+  return names.map((n, i) => `${n}（${start.add(i, 'day').format('M.D')}）`)
+})
+
+const weekOptions = computed(() => {
+  const m = dayjs(currentMonth.value)
+  const monthStart = m.startOf('month')
+  const monthEnd = m.endOf('month')
+  // 第一个周一的日期（可能在上月）
+  const firstWeekStart = monthStart.subtract(monthStart.day() || 7, 'day').add(1, 'day')
+  const weeks = []
+  let weekStart = firstWeekStart
+  let idx = 1
+  while (weekStart.isBefore(monthEnd.add(1, 'day'))) {
+    const weekEnd = weekStart.add(6, 'day')
+    weeks.push({
+      index: idx,
+      start: weekStart.format('YYYY-MM-DD'),
+      end: weekEnd.format('YYYY-MM-DD'),
+      label: `第 ${idx} 周（${weekStart.format('M/D')} - ${weekEnd.format('M/D')}）`
+    })
+    weekStart = weekStart.add(7, 'day')
+    idx++
+  }
+  return weeks
+})
+
+function onWeekChange() {
+  // 切换周时，周课程表重新渲染（timetableMap 依赖 selectedWeek）
+}
 
 const calendarDays = computed(() => {
   void holidayVersion.value
@@ -182,6 +226,7 @@ function buildDay(dayNum, dateStr, isCurrentMonth) {
 
 function changeMonth(delta) {
   currentMonth.value = dayjs(currentMonth.value).add(delta, 'month').format('YYYY-MM')
+  selectedWeek.value = 1
 }
 
 function goToDay(dateStr) {
@@ -201,6 +246,7 @@ function getTeacherLabel(t) {
 
 function backToToday() {
   currentMonth.value = dayjs().format('YYYY-MM')
+  selectedWeek.value = 1
   goToDay(todayStr)
 }
 
@@ -210,10 +256,17 @@ const timetableMap = computed(() => {
   const m = dayjs(currentMonth.value)
   const monthStart = m.startOf('month').format('YYYY-MM-DD')
   const monthEnd = m.endOf('month').format('YYYY-MM-DD')
+  // 当前选中的周范围：selectedWeek=0 表示全部（整月）
+  let wkStart = monthStart
+  let wkEnd = monthEnd
+  if (selectedWeek.value > 0) {
+    const wk = weekOptions.value[selectedWeek.value - 1]
+    if (wk) { wkStart = wk.start; wkEnd = wk.end }
+  }
   const map = {}
   const seen = new Set() // 每周重复去重
   for (const c of monthCourses.value) {
-    if (c.date < monthStart || c.date > monthEnd) continue
+    if (c.date < wkStart || c.date > wkEnd) continue
     const d = dayjs(c.date)
     const dow = d.day() || 7 // 1=Mon..7=Sun
     const [sh, sm] = c.start_time.split(':').map(Number)

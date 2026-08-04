@@ -136,7 +136,7 @@
 .timeline-wrapper::-webkit-scrollbar-track { background: transparent; }
 .timeline {
   position: relative;
-  min-height: calc(18 * 64px + 20px);
+  min-height: calc(19 * 64px + 20px);
   padding: 0px 16px 0 70px;
 }
 .hour-slot {
