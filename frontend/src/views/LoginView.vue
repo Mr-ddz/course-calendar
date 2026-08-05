@@ -39,7 +39,7 @@
         </el-form-item>
       </el-form>
       <p class="register-link">
-        没有账号？<a href="javascript:void(0)" @click="$router.push('/register')">免费注册</a>
+        没有账号？<a href="javascript:void(0)" @click="$router.push('/register')">注册</a>
         &nbsp;|&nbsp;
         <a href="javascript:void(0)" @click="$router.push('/forgot-password')">忘记密码</a>
       </p>
