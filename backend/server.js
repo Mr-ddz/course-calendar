@@ -1718,6 +1718,88 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
+// ========== 账号过期邮件提醒 ==========
+// 提前 7/3/1 天提醒，过期后告知数据保留 15 天；每阶段只发一次（expire_reminded 去重）
+function sendExpiryReminder(teacher, daysLeft) {
+  if (!teacher.email || !transporter) return;
+  const expireDate = teacher.expires_at;
+  let subject, body;
+  const loginUrl = `${SITE_URL}/login`;
+
+  if (daysLeft <= 0) {
+    // 过期：数据保留 15 天后删除（以过期次日为第 1 天，共保留 15 天）
+    const purgeDate = new Date(new Date(expireDate).getTime() + 16 * 86400000);
+    const purgeDateStr = purgeDate.toISOString().split('T')[0];
+    subject = '课表侠 - 账号已过期';
+    body = `
+      <p>您好，<strong>${teacher.name}</strong>：</p>
+      <p>您的课表侠账号已于 <strong style="color:#f56c6c;">${expireDate}</strong> 过期。</p>
+      <p>您的数据将保留 <strong style="color:#e6a23c;">15 天</strong>（至 <strong>${purgeDateStr}</strong>），逾期后将被全部删除。</p>
+      <p>如需继续使用，请尽快联系管理员续费。</p>`;
+  } else {
+    const labels = { 7: '7 天', 3: '3 天', 1: '最后 1 天' };
+    subject = `课表侠 - 账号即将过期（${labels[daysLeft]}）`;
+    body = `
+      <p>您好，<strong>${teacher.name}</strong>：</p>
+      <p>您的课表侠账号将于 <strong style="color:#e6a23c;">${expireDate}</strong> 过期（${labels[daysLeft]}后到期）。</p>
+      <p>为避免账号过期影响课程管理，请及时联系管理员续费。</p>`;
+  }
+
+  transporter.sendMail({
+    from: SMTP_FROM,
+    to: teacher.email,
+    bcc: SMTP_FROM, // 教师本人 + 管理员都收到
+    subject,
+    html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+      <h2 style="color:#667eea;">课表侠</h2>
+      ${body}
+      <p style="text-align:center;margin:24px 0;">
+        <a href="${loginUrl}" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往登录</a>
+      </p>
+      <p style="color:#999;font-size:12px;">登录地址：${loginUrl}</p>
+    </div>`
+  }).then(() => {
+    console.log(`📧 已发送过期提醒邮件(${daysLeft > 0 ? daysLeft + '天' : '已过期'})到 ${teacher.email}`);
+  }).catch(e => console.error('发送过期提醒邮件失败:', e));
+}
+
+function checkExpiringAccounts() {
+  try {
+    const rows = db.prepare(
+      `SELECT id, name, email, expires_at, expire_reminded FROM teachers
+       WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at != '' AND email IS NOT NULL AND email != ''`
+    ).all();
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    for (const teacher of rows) {
+      const expire = new Date(teacher.expires_at);
+      if (isNaN(expire)) continue;
+      expire.setHours(0, 0, 0, 0);
+      const daysLeft = Math.ceil((expire - now) / 86400000);
+      const reminded = teacher.expire_reminded;
+
+      let stage = null;
+      if (daysLeft <= 0 && reminded !== 'expired') {
+        stage = 'expired';        // 过期 → 发过期告知
+      } else if (daysLeft === 1 && reminded !== '1' && reminded !== 'expired') {
+        stage = '1';              // 最后 1 天
+      } else if (daysLeft === 3 && reminded !== '3' && reminded !== '1' && reminded !== 'expired') {
+        stage = '3';              // 3 天
+      } else if (daysLeft === 7 && reminded !== '7') {
+        stage = '7';              // 7 天
+      }
+
+      if (stage) {
+        sendExpiryReminder(teacher, stage === 'expired' ? 0 : parseInt(stage));
+        db.prepare(`UPDATE teachers SET expire_reminded = ? WHERE id = ?`).run(stage, teacher.id);
+      }
+    }
+  } catch (e) {
+    console.error('检查账号过期提醒失败:', e);
+  }
+}
+
 // ========== 启动 ==========
 preloadHolidays();
 // 启动前检查数据库字段完整性（防止部署后忘记重启）
@@ -1728,6 +1810,9 @@ try {
   console.error('   sqlite3 backend/data/schedule.db "ALTER TABLE teachers ADD COLUMN role TEXT DEFAULT \'teacher\'"');
   process.exit(1);
 }
+// 启动即检查一次，之后每 6 小时检查一次
+checkExpiringAccounts();
+setInterval(checkExpiringAccounts, 6 * 3600 * 1000);
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`📚 课程表已启动: http://localhost:${PORT}`);
 });

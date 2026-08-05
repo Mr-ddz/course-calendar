@@ -325,4 +325,11 @@ if (!hasExpiresCol) {
   console.log(`⏰ 已添加 teachers 表的 expires_at 字段`);
 }
 
+// ========== 10. expire_reminded 字段（过期邮件提醒去重：7/3/1/expired 已发阶段） ==========
+const hasRemindCol = db.prepare(`SELECT COUNT(*) as cnt FROM pragma_table_info('teachers') WHERE name='expire_reminded'`).get().cnt > 0;
+if (!hasRemindCol) {
+  db.exec(`ALTER TABLE teachers ADD COLUMN expire_reminded TEXT DEFAULT NULL`);
+  console.log(`📧 已添加 teachers 表的 expire_reminded 字段`);
+}
+
 module.exports = db;
