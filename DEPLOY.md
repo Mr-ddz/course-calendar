@@ -219,7 +219,7 @@ nginx -t
 systemctl reload nginx
 ```
 
-### 4. 配置 HTTPS（免费）
+### 4. 配置 HTTPS（Let's Encrypt 证书）
 
 ```bash
 # 安装 Certbot
@@ -301,11 +301,11 @@ cp /tmp/schedule.db /root/course-calendar/backend/
 
 ---
 
-## 十、免费替代方案：Railway
+## 十、替代方案：Railway
 
 > 适合不想买服务器、个人使用
 
-[railway.app](https://railway.app) — 免费额度够个人用
+[railway.app](https://railway.app) — 基础额度够个人用
 
 1. 把代码推到 GitHub
 2. 注册 Railway → GitHub 授权
@@ -315,7 +315,7 @@ cp /tmp/schedule.db /root/course-calendar/backend/
 
 Railway 会自动分配 `*.railway.app` 的域名，不需要买服务器。
 
-⚠️ **注意**：Railway 是国外平台，国内访问速度较慢，且免费实例会休眠（30分钟没人访问就停，有人访问时恢复）。
+⚠️ **注意**：Railway 是国外平台，国内访问速度较慢，且按量计费实例在无访问时会休眠（30分钟没人访问就停，有人访问时恢复）。
 
 ---
 

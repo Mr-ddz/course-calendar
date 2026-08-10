@@ -24,7 +24,7 @@
           <h1 class="lp-hero-title">让排课 <span class="gradient-text">更简单</span></h1>
           <p class="lp-hero-desc">课表侠是一款专为教师和培训机构设计的课程管理工具。<br>排课、签到、课时费统计，一应俱全。</p>
           <div class="lp-hero-actions">
-            <el-button type="primary" size="large" round @click="goLogin">免费开始使用</el-button>
+            <el-button type="primary" size="large" round @click="goLogin">开始使用</el-button>
             <el-button size="large" round @click="scrollToFeatures">了解更多</el-button>
           </div>
         </div>
@@ -98,7 +98,7 @@
           <div class="howto-step">1</div>
           <div class="howto-icon">👤</div>
           <h3>注册账号</h3>
-          <p>免费注册教师账号，或由管理员后台创建，即刻开始使用。</p>
+          <p>注册教师账号，或由管理员后台创建，即刻开始使用。</p>
         </div>
         <div class="howto-arrow">→</div>
         <div class="howto-card">
@@ -136,8 +136,8 @@
             <span class="stat-label">稳定运行</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">免费</span>
-            <span class="stat-label">持续使用</span>
+            <span class="stat-number">安全</span>
+            <span class="stat-label">数据隔离</span>
           </div>
         </div>
       </div>
@@ -149,13 +149,10 @@
       <p class="section-desc">关于课表侠，您可能想了解这些</p>
       <div class="faq-list">
         <el-collapse accordion>
-          <el-collapse-item title="课表侠收费吗？" name="1">
-            <div class="faq-answer">完全免费。所有核心功能（排课、签到、统计、学生管理、预交课时费）均可免费使用，无需付费。</div>
+          <el-collapse-item title="如何创建教师账号？" name="1">
+            <div class="faq-answer">两种方式：① 在登录页点击「注册」，填写信息后等待管理员审核通过；② 联系您的管理员，直接在后台为您创建账号。创建后您会收到包含登录信息的邮件通知。</div>
           </el-collapse-item>
-          <el-collapse-item title="如何创建教师账号？" name="2">
-            <div class="faq-answer">两种方式：① 在登录页点击「免费注册」，填写信息后等待管理员审核通过；② 联系您的管理员，直接在后台为您创建账号。创建后您会收到包含登录信息的邮件通知。</div>
-          </el-collapse-item>
-          <el-collapse-item title="什么是预交课时费？" name="3">
+          <el-collapse-item title="什么是预交课时费？" name="2">
             <div class="faq-answer">家长可以一次性充值一笔费用，每次学生签到上课时，系统自动从余额中扣除对应课时费。余额不足时会标记待补交，充值后自动补扣。也支持传统的课后结算模式，两种模式可随时切换。</div>
           </el-collapse-item>
           <el-collapse-item title="我之前的课程数据会不会丢失？" name="4">
@@ -174,7 +171,7 @@
     <!-- CTA -->
     <section class="lp-cta">
       <h2>准备好开始了吗？</h2>
-      <p>立即免费使用，体验高效排课的乐趣</p>
+      <p>立即开始使用，体验高效排课的乐趣</p>
       <el-button type="primary" size="large" round @click="goLogin">进入课表侠</el-button>
     </section>
 
