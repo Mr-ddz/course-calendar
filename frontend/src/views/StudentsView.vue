@@ -316,7 +316,7 @@ function openEditDialog(row) {
   editingId.value = row.id
   form.name = row.name
   form.grade = row.grade || ''
-  form.hourly_fee = row.hourly_fee || ''
+  form.hourly_fee = row.hourly_fee ?? ''
   form.payment_mode = row.payment_mode || 'settle'
   formDialogVisible.value = true
 }
