@@ -135,9 +135,9 @@
           </el-select>
           <span v-else style="color:#303133;font-weight:600">{{ teacherOptions.find(t => t.id == courseForm.teacher_id)?.name || '—' }}</span>
         </el-form-item>
-        <el-form-item label="时间" required label-for="course_datetime">
+        <el-form-item label="时间" required label-for="course_datetime_start">
           <el-date-picker
-            id="course_datetime"
+            :id="['course_datetime_start', 'course_datetime_end']"
             v-model="dateTimeRange"
             type="datetimerange"
             range-separator="至"
@@ -609,7 +609,7 @@ function editCourse(course) {
     color: course.color || '#409EFF',
     description: course.description || '',
     grade: course.grade || '',
-    hourly_fee: course.hourly_fee || '',
+    hourly_fee: course.hourly_fee ?? '',
     attended: !!course.attended,
     repeat_type: course.repeat_type || 'none',
     end_date: course.end_date || '',
@@ -656,8 +656,12 @@ async function saveCourse() {
     ElMessage.warning('请选择教师')
     return
   }
-  if (!courseForm.value.hourly_fee || parseFloat(courseForm.value.hourly_fee) <= 0) {
-    ElMessage.warning('请输入有效的课时费')
+  if (courseForm.value.hourly_fee === '' || courseForm.value.hourly_fee === null || courseForm.value.hourly_fee === undefined) {
+    ElMessage.warning('请输入课时费')
+    return
+  }
+  if (parseFloat(courseForm.value.hourly_fee) < 0) {
+    ElMessage.warning('课时费不能为负数')
     return
   }
 

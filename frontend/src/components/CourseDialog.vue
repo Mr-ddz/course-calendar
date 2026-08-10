@@ -310,7 +310,8 @@ async function handleSubmit() {
   if (!form.student_name.trim()) { ElMessage.warning('请输入学生姓名'); return }
   if (canSelectTeacher && !form.teacher_id) { ElMessage.warning('请选择教师'); return }
   if (!form.grade.trim()) { ElMessage.warning('请输入年级'); return }
-  if (!form.hourly_fee || parseFloat(form.hourly_fee) <= 0) { ElMessage.warning('请输入有效的课时费'); return }
+  if (form.hourly_fee === '' || form.hourly_fee === null || form.hourly_fee === undefined) { ElMessage.warning('请输入课时费'); return }
+  if (parseFloat(form.hourly_fee) < 0) { ElMessage.warning('课时费不能为负数'); return }
   if (!startDateTime.value) { ElMessage.warning('请选择开始时间'); return }
   if (!durationMinutes.value) { ElMessage.warning('请选择时长'); return }
   if (form.repeat_type !== 'none' && endMode.value === 'date' && !form.end_date) {

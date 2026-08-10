@@ -535,6 +535,13 @@ const ADMIN_ID = 1;
 function isAdmin(user) { return user.id === ADMIN_ID; }
 function getRole(user) { return user.role || 'teacher'; }
 function isSuperAdmin(user) { return getRole(user) === 'super_admin'; }
+// 单价允许为 0，但不可为负数；返回 null 表示无问题，否则为错误信息
+function feeError(hourly_fee) {
+  if (hourly_fee !== undefined && hourly_fee !== null && hourly_fee !== '' && parseFloat(hourly_fee) < 0) {
+    return '单价不能为负数';
+  }
+  return null;
+}
 function accessibleClause(user, tableAlias) {
   const t = tableAlias || 'c';
   if (isAdmin(user) || isSuperAdmin(user)) return { sql: '1=1', params: [] };
@@ -815,6 +822,7 @@ app.post('/api/courses', (req, res) => {
     if (!student_name || !date || !start_time || !end_time) {
       return res.status(400).json({ error: '请填写必要字段: student_name, date, start_time, end_time' });
     }
+    if (feeError(hourly_fee)) return res.status(400).json({ error: feeError(hourly_fee) });
 
     // 处理学生关联：如果有 student_id 则从学生表取数据，否则自动创建
     if (student_id) {
@@ -909,6 +917,8 @@ app.put('/api/courses/:id', (req, res) => {
     if (!existing) return res.status(404).json({ error: '课程不存在或无权操作' });
 
     const { student_id, student_name, date, start_time, end_time, color, description, grade, hourly_fee, attended, repeat_type, update_all_future, teacher_id } = req.body;
+
+    if (feeError(hourly_fee)) return res.status(400).json({ error: feeError(hourly_fee) });
 
     // 解析最终教师 id（super_admin/manager 可指定给其他教师）
     let finalTeacherId = existing.teacher_id || req.teacher.id;
