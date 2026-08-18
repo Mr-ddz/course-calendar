@@ -80,7 +80,7 @@
           size="small"
         >
           <el-table-column label="" width="100" prop="timeLabel" />
-          <el-table-column v-for="(d, idx) in weekDayHeaders" :key="d" :label="d" min-width="85" header-align="center">
+          <el-table-column v-for="(d, idx) in weekDayHeaders" :key="idx" :label="d" min-width="85" header-align="center">
             <template #default="{ row }">
               <div
                 v-for="(course, ci) in (row.days[idx] || [])"
@@ -152,7 +152,7 @@ const weekDayHeaders = computed(() => {
   const wk = weekOptions.value[selectedWeek.value - 1]
   if (!wk) return names
   const start = dayjs(wk.start)
-  return names.map((n, i) => `${n}（${start.add(i, 'day').format('M.D')}）`)
+  return names.map((n, i) => `${n}（${start.add(i, 'day').format('M.DD')}）`)
 })
 
 const weekOptions = computed(() => {
@@ -170,7 +170,7 @@ const weekOptions = computed(() => {
       index: idx,
       start: weekStart.format('YYYY-MM-DD'),
       end: weekEnd.format('YYYY-MM-DD'),
-      label: `第 ${idx} 周（${weekStart.format('M/D')} - ${weekEnd.format('M/D')}）`
+      label: `第 ${idx} 周（${weekStart.format('M/DD')} - ${weekEnd.format('M/DD')}）`
     })
     weekStart = weekStart.add(7, 'day')
     idx++
