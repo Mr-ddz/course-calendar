@@ -61,10 +61,11 @@
             <span v-else class="balance-na">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="230">
+        <el-table-column label="操作" min-width="330">
           <template #default="{ row }">
             <el-button v-if="row.payment_mode === 'prepaid'" type="success" size="small" plain @click="openRechargeDialog(row)">充值</el-button>
             <el-button v-if="row.payment_mode === 'prepaid'" size="small" @click="openTransactionsDialog(row)">流水</el-button>
+            <el-button v-if="row.payment_mode === 'prepaid'" size="small" :loading="exportingId === row.id" @click="exportTransactions(row)">流水导出</el-button>
             <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
             <el-button size="small" type="danger" plain @click="deleteStudent(row)">删除</el-button>
           </template>
@@ -214,7 +215,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
+import * as XLSX from 'xlsx'
 import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi, getTeachers } from '../api/index.js'
+import { saveFile } from '../utils/saveFile.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -434,6 +437,43 @@ function txTypeTag(type) {
 function txTypeLabel(type) {
   const map = { recharge: '充值', deduct: '扣费', deduct_failed: '待补交', refund: '退款' }
   return map[type] || type
+}
+
+// 流水导出
+const exportingId = ref(null)
+
+async function exportTransactions(row) {
+  exportingId.value = row.id
+  try {
+    const filename = `${row.name}_流水_${dayjs().format('YYYY-MM-DD')}.xlsx`
+    let exportedCount = 0
+    const result = await saveFile(filename, async () => {
+      const res = await getStudentTransactions(row.id)
+      const transactions = res.data.data.transactions || []
+      if (!transactions.length) return null
+      exportedCount = transactions.length
+      const data = transactions.map(t => ({
+        '时间': dayjs(t.created_at).format('YYYY-MM-DD HH:mm'),
+        '类型': txTypeLabel(t.type),
+        '金额': t.amount,
+        '余额': t.balance_after,
+        '备注': t.note || ''
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      ws['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 45 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '预交流水')
+      return XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    })
+    if (result === 'saved') ElMessage.success(`已导出「${row.name}」的 ${exportedCount} 条流水`)
+    else if (result === 'fallback') ElMessage.success(`已开始导出「${row.name}」的 ${exportedCount} 条流水，请留意浏览器下载栏`)
+    else if (result === 'cancelled') ElMessage.info('已取消导出')
+    else if (result === 'no-data') ElMessage.warning('该学生暂无流水记录')
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || '导出失败')
+  } finally {
+    exportingId.value = null
+  }
 }
 
 onMounted(() => { loadTeacherOptions(); loadStudents() })
