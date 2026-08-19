@@ -79,7 +79,7 @@
         <div class="feature-card">
           <div class="feature-icon">📊</div>
           <h3>数据统计</h3>
-          <p>按周/月/年统计上课时长、应收费用、实收费用，支持按教师筛选。一键导出CSV。</p>
+          <p>按周/月/年统计上课时长、应收费用、实收费用，支持按教师筛选。一键导出Excel。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
@@ -162,7 +162,7 @@
             <div class="faq-answer">在登录页点击「忘记密码」，输入注册时填写的邮箱，系统会发送密码重置链接。如果注册时没有绑定邮箱，请联系管理员在后台重置密码。</div>
           </el-collapse-item>
           <el-collapse-item title="可以导出统计数据吗？" name="6">
-            <div class="faq-answer">可以。在统计页面搜索课程后，点击「📥 导出CSV」按钮，即可将当前筛选结果导出为 CSV 文件，可用 Excel 或 WPS 打开查看。</div>
+            <div class="faq-answer">可以。在统计页面搜索课程后，点击「📥 导出Excel」按钮，即可将当前筛选结果导出为 Excel 文件。</div>
           </el-collapse-item>
         </el-collapse>
       </div>
