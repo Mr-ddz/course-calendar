@@ -89,7 +89,7 @@
         <el-form-item style="margin-bottom: 10px;">
           <el-button type="primary" @click="doSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
-          <el-button @click="exportCSV">📥 导出CSV</el-button>
+          <el-button :loading="exporting" @click="exportExcel">📥 导出Excel</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -156,7 +156,9 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
+import * as XLSX from 'xlsx'
 import { searchCourses, getStatistics, getTeachers } from '../api/index.js'
+import { saveFile } from '../utils/saveFile.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -338,7 +340,25 @@ function resetSearch() {
 }
 
 // ===== 辅助函数 =====
-async function exportCSV() {
+const exporting = ref(false)
+
+async function exportExcel() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const result = await saveFile(`课程数据_${new Date().toISOString().slice(0, 10)}.xlsx`, buildExcel)
+    if (result === 'saved') ElMessage.success('导出成功')
+    else if (result === 'fallback') ElMessage.success('已开始导出，请留意浏览器下载栏')
+    else if (result === 'cancelled') ElMessage.info('已取消导出')
+    else if (result === 'no-data') ElMessage.warning('没有数据可导出')
+  } catch {
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function buildExcel() {
   // 用当前搜索条件请求全部数据（取消分页限制）
   const params = { page: 1, page_size: 100000 }
   if (searchDateRange.value) {
@@ -353,46 +373,27 @@ async function exportCSV() {
   if (searchForm.teacher_id) params.teacher_id = searchForm.teacher_id
   if (searchForm.manager_id) params.managed_by = searchForm.manager_id
 
-  let allData
-  try {
-    const res = await searchCourses(params)
-    allData = res.data.data || []
-  } catch {
-    ElMessage.error("导出失败")
-    return
-  }
+  const res = await searchCourses(params)
+  const allData = res.data.data || []
+  if (!allData || allData.length === 0) return null
 
-  if (!allData || allData.length === 0) {
-    ElMessage.warning("没有数据可导出")
-    return
-  }
-
-  // BOM for UTF-8 + headers
-  let csv = "﻿日期,开始,结束,时长,学生,年级,每小时课时费,实收,签到,教师\n"
-
-  for (const r of allData) {
-    const row = [
-      r.date,
-      r.start_time,
-      r.end_time,
-      calcDuration(r.start_time, r.end_time),
-      r.student_name,
-      r.grade || "",
-      r.hourly_fee,
-      r.attended ? calcReceivedFee(r) : "0",
-      r.attended ? "已到" : "未到",
-      r.teacher_name || ""
-    ].map(v => '"' + (v || '').toString().replace(/"/g, '""').replace(/\n/g, ' ') + '"').join(',')
-    csv += row + "\n"
-  }
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-  const link = document.createElement("a")
-  link.href = URL.createObjectURL(blob)
-  link.download = "课程数据_" + new Date().toISOString().slice(0, 10) + ".csv"
-  link.click()
-  URL.revokeObjectURL(link.href)
-  ElMessage.success("导出成功")
+  const data = allData.map(r => ({
+    '日期': r.date,
+    '开始': r.start_time,
+    '结束': r.end_time,
+    '时长': calcDuration(r.start_time, r.end_time),
+    '学生': r.student_name,
+    '年级': r.grade || '',
+    '每小时课时费': r.hourly_fee,
+    '实收': r.attended ? calcReceivedFee(r) : '0',
+    '签到': r.attended ? '已到' : '未到',
+    '教师': r.teacher_name || ''
+  }))
+  const ws = XLSX.utils.json_to_sheet(data)
+  ws['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 6 }, { wch: 10 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '课程记录')
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
 }
 
 function goToEdit(row) {
