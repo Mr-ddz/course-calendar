@@ -69,27 +69,41 @@
           v-for="course in displayCourses"
           :key="course.id"
           class="course-block"
-          :class="{ 'course-block--lane': course.laneCount > 1 }"
+          :class="{ 'course-block--lane': course.laneCount > 1, 'course-block--short': course.isShort }"
           :style="getCourseStyle(course)"
           @click.stop="editCourse(course)"
         >
           <div class="course-inner" :style="{ backgroundColor: course.color + '20', borderLeftColor: course.color }">
-            <div v-if="!hideStudentName" class="course-student">
-              {{ course.student_name }}
-              <span v-if="course.teacher_name" class="course-teacher">（{{ course.teacher_name }}）</span>
-            </div>
-            <div class="course-time">
-              <span v-if="course.repeat_type === 'weekly'" class="repeat-badge">🔄每周</span>
-              <span v-if="course.repeat_type === 'weekdays'" class="repeat-badge">🔄工作日</span>
-              {{ course.start_time }} - {{ course.end_time }}
-            </div>
-            <div v-if="!hideStudentName" class="course-meta">
-              <span v-if="course.grade" class="meta-item">{{ course.grade }}</span>
-              <span v-if="course.hourly_fee" class="meta-item">{{ course.hourly_fee }}元/时</span>
-              <span class="meta-item" :class="course.attended ? 'meta-attended-yes' : 'meta-attended-no'">
-                {{ course.attended ? '✅已到' : '❌未到' }}
-              </span>
-            </div>
+            <template v-if="course.isShort">
+              <!-- 短课时(≤45分钟):信息分两排显示,避免高度不足导致姓名/每周标志/时间重叠 -->
+              <div v-if="!hideStudentName" class="course-student">
+                {{ course.student_name }}
+                <span v-if="course.teacher_name" class="course-teacher">（{{ course.teacher_name }}）</span>
+                <span v-if="course.repeat_type === 'weekly'" class="repeat-badge">🔄每周</span>
+                <span v-if="course.repeat_type === 'weekdays'" class="repeat-badge">🔄工作日</span>
+              </div>
+              <div class="course-time">
+                {{ course.start_time }} - {{ course.end_time }}
+              </div>
+            </template>
+            <template v-else>
+              <div v-if="!hideStudentName" class="course-student">
+                {{ course.student_name }}
+                <span v-if="course.teacher_name" class="course-teacher">（{{ course.teacher_name }}）</span>
+              </div>
+              <div class="course-time">
+                <span v-if="course.repeat_type === 'weekly'" class="repeat-badge">🔄每周</span>
+                <span v-if="course.repeat_type === 'weekdays'" class="repeat-badge">🔄工作日</span>
+                {{ course.start_time }} - {{ course.end_time }}
+              </div>
+              <div v-if="!hideStudentName" class="course-meta">
+                <span v-if="course.grade" class="meta-item">{{ course.grade }}</span>
+                <span v-if="course.hourly_fee" class="meta-item">{{ course.hourly_fee }}元/时</span>
+                <span class="meta-item" :class="course.attended ? 'meta-attended-yes' : 'meta-attended-no'">
+                  {{ course.attended ? '✅已到' : '❌未到' }}
+                </span>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -339,7 +353,13 @@ async function loadManagerOptions() {
 
 // 处理课程显示：admin 遇到多教师时间重叠时，按老师分列
 const displayCourses = computed(() => {
-  const items = courses.value.map(c => ({ ...c }))
+  const items = courses.value.map(c => {
+    // 45 分钟及更短的课程:块高度不足,改用两排布局避免信息重叠
+    const [sh, sm] = (c.start_time || '').split(':').map(Number)
+    const [eh, em] = (c.end_time || '').split(':').map(Number)
+    const durationMins = eh * 60 + em - (sh * 60 + sm)
+    return { ...c, isShort: durationMins <= 45 }
+  })
   if (!isAdmin.value || items.length < 2) return items
 
   // 按开始时间排序
