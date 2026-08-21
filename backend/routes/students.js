@@ -259,11 +259,17 @@ router.get('/api/students/:id/transactions', (req, res) => {
     }
     if (!student) return res.status(404).json({ error: '学生不存在或无权操作' });
 
+    // 分页查询流水（流水可能上千条，一次全取弹框会很长）
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.page_size) || 15))
+    const total = db.prepare(
+      `SELECT COUNT(*) as c FROM prepaid_transactions WHERE student_id = ?`
+    ).get(id).c
     const transactions = db.prepare(
-      `SELECT * FROM prepaid_transactions WHERE student_id = ? ORDER BY created_at DESC LIMIT 100`
-    ).all(id);
+      `SELECT * FROM prepaid_transactions WHERE student_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(id, pageSize, (page - 1) * pageSize);
 
-    res.json({ data: { balance: student.prepaid_balance || 0, transactions } });
+    res.json({ data: { balance: student.prepaid_balance || 0, transactions, total, page, page_size: pageSize } });
   } catch (err) {
     console.error('查流水失败:', err);
     res.status(500).json({ error: '查流水失败' });

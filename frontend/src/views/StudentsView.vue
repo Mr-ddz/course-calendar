@@ -155,7 +155,7 @@
     <el-dialog
       v-model="transactionsDialogVisible"
       :title="'预交流水 — ' + (transactionsTarget?.name || '')"
-      width="550px"
+      width="620px"
       destroy-on-close
     >
       <div v-if="transactionsLoading" style="text-align:center;padding:20px">加载中...</div>
@@ -190,6 +190,19 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-if="txTotal > 0"
+          v-model:current-page="txPage"
+          v-model:page-size="txPageSize"
+          :total="txTotal"
+          :page-sizes="[15, 30, 50]"
+          layout="total, sizes, prev, pager, next"
+          size="small"
+          background
+          style="margin-top:10px; justify-content:flex-end"
+          @size-change="onTxPageSizeChange"
+          @current-change="onTxPageChange"
+        />
       </template>
     </el-dialog>
 
@@ -412,22 +425,44 @@ const transactionsDialogVisible = ref(false)
 const transactionsTarget = ref(null)
 const transactionsData = reactive({ balance: 0, transactions: [] })
 const transactionsLoading = ref(false)
+const txPage = ref(1)
+const txPageSize = ref(15)
+const txTotal = ref(0)
 
-async function openTransactionsDialog(row) {
-  transactionsTarget.value = row
-  transactionsData.balance = 0
-  transactionsData.transactions = []
-  transactionsDialogVisible.value = true
+async function loadTransactionsPage() {
   transactionsLoading.value = true
   try {
-    const res = await getStudentTransactions(row.id)
+    const res = await getStudentTransactions(transactionsTarget.value.id, {
+      page: txPage.value,
+      page_size: txPageSize.value
+    })
     transactionsData.balance = res.data.data.balance || 0
     transactionsData.transactions = res.data.data.transactions || []
+    txTotal.value = res.data.data.total || 0
   } catch (err) {
     ElMessage.error('加载流水失败')
   } finally {
     transactionsLoading.value = false
   }
+}
+
+async function openTransactionsDialog(row) {
+  transactionsTarget.value = row
+  transactionsData.balance = 0
+  transactionsData.transactions = []
+  txPage.value = 1
+  txTotal.value = 0
+  transactionsDialogVisible.value = true
+  await loadTransactionsPage()
+}
+
+function onTxPageChange() {
+  loadTransactionsPage()
+}
+
+function onTxPageSizeChange() {
+  txPage.value = 1
+  loadTransactionsPage()
 }
 
 function txTypeTag(type) {
@@ -442,14 +477,28 @@ function txTypeLabel(type) {
 // 流水导出
 const exportingId = ref(null)
 
+// 分页取全部流水（接口已分页，导出需要全量）
+async function fetchAllTransactions(studentId) {
+  const all = []
+  let page = 1
+  const pageSize = 100
+  for (;;) {
+    const res = await getStudentTransactions(studentId, { page, page_size: pageSize })
+    const items = res.data.data.transactions || []
+    all.push(...items)
+    if (items.length < pageSize) break
+    page++
+  }
+  return all
+}
+
 async function exportTransactions(row) {
   exportingId.value = row.id
   try {
     const filename = `${row.name}_流水_${dayjs().format('YYYY-MM-DD')}.xlsx`
     let exportedCount = 0
     const result = await saveFile(filename, async () => {
-      const res = await getStudentTransactions(row.id)
-      const transactions = res.data.data.transactions || []
+      const transactions = await fetchAllTransactions(row.id)
       if (!transactions.length) return null
       exportedCount = transactions.length
       const data = transactions.map(t => ({
