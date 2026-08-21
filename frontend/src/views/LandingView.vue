@@ -214,13 +214,6 @@
       <a href="mailto:kebiaoxia@126.com" class="feedback-btn">发送邮件反馈</a>
     </section>
 
-    <!-- 使用反馈 -->
-    <section class="lp-feedback">
-      <h2>📧 使用反馈</h2>
-      <p>有任何建议或问题？我们很乐意听取您的意见</p>
-      <a href="mailto:kebiaoxia@126.com" class="feedback-btn">发送邮件反馈</a>
-    </section>
-
     <!-- 页脚 -->
     <footer class="lp-footer">
       <p><a href="https://beian.miit.gov.cn/" target="_blank" style="color: #bbb; text-decoration: none;">辽ICP备2026015173号-1</a></p>
