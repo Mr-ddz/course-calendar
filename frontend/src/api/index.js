@@ -162,8 +162,8 @@ export function getStudentRecentFee(id) {
 export function rechargeStudent(id, data) {
   return api.post(`/students/${id}/recharge`, data)
 }
-export function getStudentTransactions(id) {
-  return api.get(`/students/${id}/transactions`)
+export function getStudentTransactions(id, params) {
+  return api.get(`/students/${id}/transactions`, { params })
 }
 
 // ===== 课程 =====
