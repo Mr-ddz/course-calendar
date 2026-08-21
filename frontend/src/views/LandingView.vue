@@ -1,40 +1,86 @@
 <template>
   <div class="landing-page">
     <!-- 导航栏 -->
-    <header class="lp-header">
+    <header class="lp-header" :class="{ 'lp-header--scrolled': scrolled }">
       <div class="lp-header-inner">
         <div class="lp-logo">
           <img src="../assets/images/logo.svg" class="lp-logo-icon" alt="课表侠" />
           <span class="lp-logo-text">课表侠</span>
         </div>
-        <div class="lp-nav">
+        <nav class="lp-nav">
           <a href="#features">功能介绍</a>
           <a href="#howto">使用流程</a>
+          <a href="#about">产品特色</a>
           <a href="#faq">常见问题</a>
-          <el-button size="small" @click="goLogin" type="primary" round>进入应用</el-button>
-        </div>
+          <el-button size="small" type="primary" round class="lp-nav-btn" @click="goLogin">进入应用</el-button>
+        </nav>
       </div>
     </header>
 
     <!-- Hero -->
     <section class="lp-hero">
-      <div class="lp-hero-bg"></div>
+      <div class="lp-hero-bg">
+        <div class="lp-blob lp-blob--1"></div>
+        <div class="lp-blob lp-blob--2"></div>
+        <div class="lp-blob lp-blob--3"></div>
+        <div class="lp-grid-overlay"></div>
+      </div>
       <div class="lp-hero-content">
         <div class="lp-hero-text">
-          <h1 class="lp-hero-title">让排课 <span class="gradient-text">更简单</span></h1>
-          <p class="lp-hero-desc">课表侠是一款专为教师和培训机构设计的课程管理工具。<br>排课、签到、课时费统计，一应俱全。</p>
-          <div class="lp-hero-actions">
-            <el-button type="primary" size="large" round @click="goLogin">开始使用</el-button>
-            <el-button size="large" round @click="scrollToFeatures">了解更多</el-button>
+          <div class="lp-badge" data-reveal>🎓 专为教师与培训机构打造</div>
+          <h1 class="lp-hero-title" data-reveal>
+            让排课 <span class="gradient-text">更简单</span><br />
+            让课时费 <span class="gradient-text">更省心</span>
+          </h1>
+          <p class="lp-hero-desc" data-reveal>
+            课表侠是一站式课程管理平台 —— 排课、签到、预交课时费自动扣款、统计导出，一应俱全。<br />
+            告别 Excel 与手工记账，把时间还给教学本身。
+          </p>
+          <div class="lp-hero-actions" data-reveal>
+            <el-button size="large" round class="lp-btn-primary" @click="goLogin">免费开始使用 →</el-button>
+            <el-button size="large" round class="lp-btn-ghost" @click="scrollToFeatures">了解更多</el-button>
+          </div>
+          <div class="lp-trust" data-reveal>
+            <span>✓ 数据私有部署</span>
+            <span>✓ 三级权限隔离</span>
+            <span>✓ 一键导出 Excel</span>
           </div>
         </div>
-        <div class="lp-hero-image">
+        <div class="lp-hero-image" data-reveal>
           <div class="lp-mockup">
-            <div class="mockup-header">📅 7月课程安排</div>
-            <div class="mockup-body">
-              <div class="mockup-row"><span>周一</span><span class="mockup-tag">张... 09:00</span></div>
-              <div class="mockup-row"><span>周三</span><span class="mockup-tag">李... 09:30</span></div>
-              <div class="mockup-row"><span>周五</span><span class="mockup-tag">王... 14:00</span></div>
+            <div class="mockup-bar">
+              <span class="mockup-dot mockup-dot--r"></span>
+              <span class="mockup-dot mockup-dot--y"></span>
+              <span class="mockup-dot mockup-dot--g"></span>
+              <span class="mockup-bar-title">课表侠 · 课程月历</span>
+            </div>
+            <div class="mockup-week">
+              <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+            </div>
+            <div class="mockup-grid">
+              <div
+                v-for="cell in mockCells"
+                :key="cell.n"
+                class="mock-cell"
+                :class="cell.cls"
+              >
+                <span class="mock-cell-n">{{ cell.n }}</span>
+                <span v-if="cell.label" class="mock-cell-pill" :class="cell.pill">{{ cell.label }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="lp-float-card lp-float-card--1">
+            <span class="fc-ic">💰</span>
+            <div class="fc-body">
+              <b>+¥3,280</b>
+              <span>本月课时费已入账</span>
+            </div>
+          </div>
+          <div class="lp-float-card lp-float-card--2">
+            <span class="fc-ic">✅</span>
+            <div class="fc-body">
+              <b>签到自动扣费</b>
+              <span>余额充足 · 无需操心</span>
             </div>
           </div>
         </div>
@@ -43,101 +89,83 @@
 
     <!-- 功能介绍 -->
     <section id="features" class="lp-features">
-      <h2 class="section-title">核心功能</h2>
-      <p class="section-desc">专为教师和培训机构设计，解决排课管理的一切烦恼</p>
+      <h2 class="section-title" data-reveal>核心功能</h2>
+      <p class="section-desc" data-reveal>专为教师和培训机构设计，解决排课管理的一切烦恼</p>
       <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">📅</div>
-          <h3>月历视图</h3>
-          <p>按月份查看所有课程安排，支持按教师筛选。点击日期快速跳转到日详情页。</p>
+        <div
+          v-for="(f, i) in features"
+          :key="f.title"
+          class="feature-card"
+          data-reveal
+          :style="{ '--i': i }"
+        >
+          <div class="feature-icon" :class="`feature-icon--${f.tone}`">{{ f.icon }}</div>
+          <h3>{{ f.title }}</h3>
+          <p>{{ f.desc }}</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">⏰</div>
-          <h3>课程时间轴</h3>
-          <p>06:00到23:00的分钟级时间轴，精确管理每节课的起止时间，支持多教师分列显示。</p>
+      </div>
+    </section>
+
+    <!-- 数据亮点 -->
+    <section class="lp-stats">
+      <div class="lp-stats-inner">
+        <div class="stat-item" data-reveal>
+          <span class="stat-number"><b data-count="20">0</b><span class="stat-suffix">+</span></span>
+          <span class="stat-label">功能模块</span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">🔄</div>
-          <h3>灵活重复</h3>
-          <p>支持每周同一天重复和每周工作日重复，自动跳过法定节假日。可设置截止日期。</p>
+        <div class="stat-item" data-reveal>
+          <span class="stat-number"><b data-count="7">0</b><span class="stat-suffix">×24</span></span>
+          <span class="stat-label">稳定运行</span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">👤</div>
-          <h3>学生管理</h3>
-          <p>学生信息集中管理，支持姓名/年级/课时单价编辑，已上课时自动统计。</p>
+        <div class="stat-item" data-reveal>
+          <span class="stat-number"><b data-count="100">0</b><span class="stat-suffix">%</span></span>
+          <span class="stat-label">课时费自动核算</span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">💰</div>
-          <h3>预交课时费</h3>
-          <p>签到自动扣费，余额不足标记待补交，充值后自动补扣。线上线下混合结算。</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">✅</div>
-          <h3>签到管理</h3>
-          <p>记录每节课的学生到课情况，签到关联自动扣费，取消签到自动退款。</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>数据统计</h3>
-          <p>按周/月/年统计上课时长、应收费用、实收费用，支持按教师筛选。一键导出Excel。</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🔒</div>
-          <h3>多级权限</h3>
-          <p>超级管理员/机构管理员/教师三级权限体系，数据严格隔离，管理更灵活。</p>
+        <div class="stat-item" data-reveal>
+          <span class="stat-number"><b data-count="3">0</b><span class="stat-suffix">级</span></span>
+          <span class="stat-label">权限体系</span>
         </div>
       </div>
     </section>
 
     <!-- 三步上手 -->
     <section id="howto" class="lp-howto">
-      <h2 class="section-title">🚀 三步上手</h2>
-      <p class="section-desc">注册账号、添加学生、开始排课，三步即可完成</p>
+      <h2 class="section-title" data-reveal>三步上手</h2>
+      <p class="section-desc" data-reveal>注册账号、添加学生、开始排课，三步即可完成</p>
       <div class="howto-grid">
-        <div class="howto-card">
-          <div class="howto-step">1</div>
-          <div class="howto-icon">👤</div>
-          <h3>注册账号</h3>
-          <p>注册教师账号，或由管理员后台创建，即刻开始使用。</p>
-        </div>
-        <div class="howto-arrow">→</div>
-        <div class="howto-card">
-          <div class="howto-step">2</div>
-          <div class="howto-icon">📋</div>
-          <h3>添加学生</h3>
-          <p>录入学生信息，设置课时单价和缴费模式，统一管理。</p>
-        </div>
-        <div class="howto-arrow">→</div>
-        <div class="howto-card">
-          <div class="howto-step">3</div>
-          <div class="howto-icon">📅</div>
-          <h3>开始排课</h3>
-          <p>创建课程安排，设置重复规则，签到自动关联扣费。</p>
-        </div>
+        <template v-for="item in howtoSteps" :key="item.kind === 'arrow' ? 'arrow-' + item.id : item.id">
+          <div v-if="item.kind === 'card'" class="howto-card" data-reveal :style="{ '--i': item.i }">
+            <div class="howto-step">{{ item.step }}</div>
+            <div class="howto-icon">{{ item.icon }}</div>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.desc }}</p>
+          </div>
+          <span v-else class="howto-arrow">→</span>
+        </template>
       </div>
     </section>
 
-    <!-- 关于 -->
+    <!-- 产品特色 -->
     <section id="about" class="lp-about">
-      <h2 class="section-title">关于课表侠</h2>
-      <p class="section-desc">一款轻量级的教师课程管理工具</p>
+      <h2 class="section-title" data-reveal>为什么选择课表侠</h2>
+      <p class="section-desc" data-reveal>一款诞生于一线教师真实需求的产品</p>
       <div class="about-content">
-        <div class="about-text">
-          <p>课表侠诞生于一线教师的实际需求，旨在解决中小型培训机构排课混乱、统计困难的问题。</p>
-          <p>支持多教师协作、预交课时费管理、学生信息管理、智能排课、签到扣费联动，让您专注于教学本身。</p>
+        <div class="about-text" data-reveal>
+          <p class="about-lead">课表侠源于一线教师和管理者的实际痛点，专注解决中小型培训机构<strong>排课混乱、课时费核算困难</strong>的问题。</p>
+          <ul class="about-points">
+            <li><span class="about-check">✓</span> 多教师协作，课程分列清晰，排课不再打架</li>
+            <li><span class="about-check">✓</span> 预交课时费签到自动扣款，余额不足自动标记待补交</li>
+            <li><span class="about-check">✓</span> 数据私有部署，课程与财务数据完全由您掌控</li>
+          </ul>
         </div>
-        <div class="about-stats">
-          <div class="stat-item">
-            <span class="stat-number">20+</span>
-            <span class="stat-label">功能模块</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-number">7×24</span>
-            <span class="stat-label">稳定运行</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-number">安全</span>
-            <span class="stat-label">数据隔离</span>
+        <div class="about-card" data-reveal>
+          <div class="about-card-icon">🛡️</div>
+          <h3>安全 · 稳定 · 可掌控</h3>
+          <p>所有数据存储于您自己的服务器，支持定期备份与迁移。超管 / 机构管理员 / 教师三级权限，数据严格隔离。</p>
+          <div class="about-card-tags">
+            <span>私有部署</span>
+            <span>三级权限</span>
+            <span>定期备份</span>
           </div>
         </div>
       </div>
@@ -145,9 +173,9 @@
 
     <!-- 常见问题 -->
     <section id="faq" class="lp-faq">
-      <h2 class="section-title">🙋 常见问题</h2>
-      <p class="section-desc">关于课表侠，您可能想了解这些</p>
-      <div class="faq-list">
+      <h2 class="section-title" data-reveal>常见问题</h2>
+      <p class="section-desc" data-reveal>关于课表侠，您可能想了解这些</p>
+      <div class="faq-list" data-reveal>
         <el-collapse accordion>
           <el-collapse-item title="如何创建教师账号？" name="1">
             <div class="faq-answer">两种方式：① 在登录页点击「注册」，填写信息后等待管理员审核通过；② 联系您的管理员，直接在后台为您创建账号。创建后您会收到包含登录信息的邮件通知。</div>
@@ -170,9 +198,20 @@
 
     <!-- CTA -->
     <section class="lp-cta">
-      <h2>准备好开始了吗？</h2>
-      <p>立即开始使用，体验高效排课的乐趣</p>
-      <el-button type="primary" size="large" round @click="goLogin">进入课表侠</el-button>
+      <div class="lp-cta-orb lp-cta-orb--1"></div>
+      <div class="lp-cta-orb lp-cta-orb--2"></div>
+      <h2 data-reveal>准备好开始了吗？</h2>
+      <p data-reveal>立即开始使用，体验高效排课的乐趣</p>
+      <div data-reveal>
+        <el-button size="large" round class="lp-cta-btn" @click="goLogin">进入课表侠 →</el-button>
+      </div>
+    </section>
+
+    <!-- 使用反馈 -->
+    <section class="lp-feedback">
+      <h2>📧 使用反馈</h2>
+      <p>有任何建议或问题？我们很乐意听取您的意见</p>
+      <a href="mailto:kebiaoxia@126.com" class="feedback-btn">发送邮件反馈</a>
     </section>
 
     <!-- 使用反馈 -->
@@ -192,6 +231,7 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -203,8 +243,114 @@ function goLogin() {
 function scrollToFeatures() {
   document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })
 }
+
+// 导航栏滚动态
+const scrolled = ref(false)
+function onScroll() {
+  scrolled.value = window.scrollY > 16
+}
+
+// 滚动浮现观察器
+let revealObserver = null
+// 数字计数观察器
+let countObserver = null
+
+function animateCount(el) {
+  const target = parseFloat(el.dataset.count) || 0
+  const duration = 1200
+  const start = performance.now()
+  function tick(now) {
+    const p = Math.min(1, (now - start) / duration)
+    // easeOutCubic
+    el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)))
+    if (p < 1) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+
+  revealObserver = new IntersectionObserver(
+    entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in')
+          revealObserver.unobserve(e.target)
+        }
+      })
+    },
+    { threshold: 0.12 }
+  )
+  document.querySelectorAll('[data-reveal]').forEach(el => revealObserver.observe(el))
+
+  countObserver = new IntersectionObserver(
+    entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.querySelectorAll('[data-count]').forEach(animateCount)
+          countObserver.unobserve(e.target)
+        }
+      })
+    },
+    { threshold: 0.4 }
+  )
+  const stats = document.querySelector('.lp-stats-inner')
+  if (stats) countObserver.observe(stats)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScroll)
+  revealObserver?.disconnect()
+  countObserver?.disconnect()
+})
+
+// 功能卡片
+const features = [
+  { icon: '📅', tone: 'indigo', title: '月历视图', desc: '按月份查看所有课程安排，支持按教师筛选。点击日期快速跳转到日详情页。' },
+  { icon: '⏰', tone: 'violet', title: '课程时间轴', desc: '06:00 到 23:00 的分钟级时间轴，精确管理每节课的起止时间，支持多教师分列显示。' },
+  { icon: '🔄', tone: 'cyan', title: '灵活重复', desc: '支持每周同一天重复和每周工作日重复，自动跳过法定节假日。可设置截止日期。' },
+  { icon: '👤', tone: 'rose', title: '学生管理', desc: '学生信息集中管理，支持姓名/年级/课时单价编辑，已上课时自动统计。' },
+  { icon: '💰', tone: 'amber', title: '预交课时费', desc: '签到自动扣费，余额不足标记待补交，充值后自动补扣。线上线下混合结算。' },
+  { icon: '✅', tone: 'green', title: '签到管理', desc: '记录每节课的学生到课情况，签到关联自动扣费，取消签到自动退款。' },
+  { icon: '📊', tone: 'indigo', title: '数据统计', desc: '按周/月/年统计上课时长、应收费用、实收费用，支持按教师筛选。一键导出Excel。' },
+  { icon: '🔒', tone: 'violet', title: '多级权限', desc: '超级管理员/机构管理员/教师三级权限体系，数据严格隔离，管理更灵活。' }
+]
+
+// 三步上手（平铺结构，中间插入箭头）
+const howtoSteps = [
+  { kind: 'card', id: 'h1', i: 0, step: '1', icon: '👤', title: '注册账号', desc: '注册教师账号，或由管理员后台创建，即刻开始使用。' },
+  { kind: 'arrow', id: 'a1' },
+  { kind: 'card', id: 'h2', i: 1, step: '2', icon: '📋', title: '添加学生', desc: '录入学生信息，设置课时单价和缴费模式，统一管理。' },
+  { kind: 'arrow', id: 'a2' },
+  { kind: 'card', id: 'h3', i: 2, step: '3', icon: '📅', title: '开始排课', desc: '创建课程安排，设置重复规则，签到自动关联扣费。' }
+]
+
+// Hero 月历 Mockup 数据
+const mockCells = []
+const mockCourses = {
+  2: ['语文', 'pill--indigo'],
+  6: ['数学', 'pill--violet'],
+  9: ['英语', 'pill--cyan'],
+  14: ['语文', 'pill--indigo'],
+  18: ['数学', 'pill--violet'],
+  23: ['英语', 'pill--cyan'],
+  27: ['物理', 'pill--rose']
+}
+for (let d = 1; d <= 28; d++) {
+  const c = mockCourses[d]
+  mockCells.push(c ? { n: d, label: c[0], pill: c[1], cls: 'mock-cell--has' } : { n: d })
+}
 </script>
 
 <style scoped>
 @import "../assets/css/landing.css";
+</style>
+
+<style>
+/* 全站平滑滚动（仅供本页锚点导航） */
+html {
+  scroll-behavior: smooth;
+}
 </style>
