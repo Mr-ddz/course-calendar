@@ -167,6 +167,20 @@ pm2 restart course-calendar  # 重启
 pm2 stop course-calendar     # 停止
 ```
 
+### 配置注册申请自动通过（可选）
+
+注册申请默认在 **60 秒**内若管理员未手动通过，则自动通过（并发送「注册审核通过」邮件）。可通过环境变量 `AUTO_APPROVE_SECONDS` 调整或关闭：
+
+```bash
+# 关闭自动通过（恢复纯人工审核）后启动
+AUTO_APPROVE_SECONDS=0 pm2 start backend/server.js --name course-calendar
+
+# 改为 10 分钟后自动通过
+AUTO_APPROVE_SECONDS=600 pm2 start backend/server.js --name course-calendar
+```
+
+> 修改环境变量需 `pm2 delete course-calendar` 后用新变量重新 `pm2 start`；不设置时默认 60 秒。
+
 **现在访问 `http://你的服务器IP:3002` 就能用了！**
 
 ---
