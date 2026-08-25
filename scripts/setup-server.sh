@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 服务器一次性改造脚本：把部署方式从「scp 覆盖 /root/backend」切换为「git clone /root/course-calendar」
+# 发版代码取自 develop 分支（克隆后自动切到 develop）
 # 新服务通过 DB_DIR 环境变量直接复用现有数据库 /root/backend/data/schedule.db（零拷贝、零数据丢失风险）
 # 用法（在服务器交互式终端中执行，git clone 首次会提示输入 Codeup 用户名 + 访问令牌）:
 #   bash setup-server.sh <Codeup仓库URL>
@@ -22,16 +23,21 @@ else
   git clone "$REPO_URL" "$APP_DIR"   # 首次会提示输入凭据，输入后自动保存，后续 git pull 免输
 fi
 
-echo "====[3/6] 构建前端 ===="
+echo "====[3/6] 切换到 develop 分支 ===="
+cd "$APP_DIR"
+git checkout develop
+git pull origin develop
+
+echo "====[4/6] 构建前端 ===="
 cd "$APP_DIR/frontend"
 npm install
 npm run build
 
-echo "====[4/6] 后端依赖 ===="
+echo "====[5/6] 后端依赖 ===="
 cd "$APP_DIR/backend"
 npm install
 
-echo "====[5/6] 确认现有数据库 ===="
+echo "====[6/6] 确认现有数据库 ===="
 if [ -f "$DB_DIR/schedule.db" ]; then
   echo "-> 找到 $DB_DIR/schedule.db，新服务将直接复用此库"
 else
@@ -39,7 +45,7 @@ else
   exit 1
 fi
 
-echo "====[6/6] 切换 pm2（短暂停机几秒）===="
+echo "====[7/6] 切换 pm2（短暂停机几秒）===="
 pm2 delete course-calendar 2>/dev/null || true
 cd "$APP_DIR/backend"
 DB_DIR="$DB_DIR" pm2 start server.js --name course-calendar
