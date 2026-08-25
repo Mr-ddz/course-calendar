@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const db = require('./database');
-const { checkExpiringAccounts } = require('./services/mailer');
+const { checkExpiringAccounts, checkPendingRegistrations } = require('./services/mailer');
 const { preloadHolidays } = require('./services/holidays');
 const { authMiddleware, rateLimiter } = require('./services/middleware');
 
@@ -58,6 +58,16 @@ try {
 // 启动即检查一次，之后每 6 小时检查一次
 checkExpiringAccounts();
 setInterval(checkExpiringAccounts, 6 * 3600 * 1000);
+
+// ========== 注册申请超时自动通过（AUTO_APPROVE_SECONDS=0/负数 即禁用） ==========
+const AUTO_APPROVE_SECONDS = parseInt(process.env.AUTO_APPROVE_SECONDS || '60', 10);
+if (!isNaN(AUTO_APPROVE_SECONDS) && AUTO_APPROVE_SECONDS > 0) {
+  checkPendingRegistrations();                       // 启动立即扫一次，处理停机期间积压
+  setInterval(checkPendingRegistrations, 15 * 1000); // 每 15 秒扫一次
+  console.log(`⚡ 注册申请自动通过已启用：超过 ${AUTO_APPROVE_SECONDS} 秒自动通过`);
+} else {
+  console.log(`⚡ 注册申请自动通过已禁用（AUTO_APPROVE_SECONDS=${AUTO_APPROVE_SECONDS}）`);
+}
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`📚 课程表已启动: http://localhost:${PORT}`);
 });
