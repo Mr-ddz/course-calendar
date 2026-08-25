@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('../database');
 const { getRole, isSuperAdmin, ADMIN_ID } = require('../services/access');
-const { transporter, SMTP_FROM, SITE_URL } = require('../services/mailer');
+const { transporter, SMTP_FROM, SITE_URL, sendApprovalEmail } = require('../services/mailer');
 
 const router = express.Router();
 
@@ -136,6 +136,10 @@ router.put('/api/admin/teachers/:id', (req, res) => {
       const target = db.prepare(`SELECT id, managed_by FROM teachers WHERE id = ?`).get(id);
       if (!target || target.managed_by !== req.teacher.id) return res.status(403).json({ error: '无权操作该教师' });
     }
+    // 更新前预读旧状态：仅 pending→active 才发审核邮件，避免与超时自动通过重复发信
+    const before = db.prepare(`SELECT id, status FROM teachers WHERE id = ?`).get(id);
+    if (!before) return res.status(404).json({ error: '教师不存在' });
+    const oldStatus = before.status;
     const { status, name, password, role, expires_at } = req.body;
     const updates = [];
     const params = [];
@@ -150,24 +154,9 @@ router.put('/api/admin/teachers/:id', (req, res) => {
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     const teacher = db.prepare(`SELECT id, name, email, source, status, role FROM teachers WHERE id = ?`).get(id);
 
-    // 审核通过时发送邮件通知
-    if (status === 'active' && teacher.email && teacher.source === 'email' && transporter) {
-      const loginUrl = `${SITE_URL}/login`;
-      transporter.sendMail({
-        from: SMTP_FROM,
-        to: teacher.email,
-        subject: '课表侠 - 注册审核通过',
-        html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
-          <h2 style="color:#667eea;">课表侠</h2>
-          <p>您好，<strong>${teacher.name}</strong>：</p>
-          <p>您在课表侠的注册申请已通过审核。</p>
-          <p>您现在可以使用注册时填写的邮箱或用户名登录，开始管理您的课程。</p>
-          <p style="text-align:center;margin:24px 0;">
-            <a href="${loginUrl}" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往登录</a>
-          </p>
-          <p style="color:#999;font-size:12px;">登录地址：${loginUrl}</p>
-        </div>`
-      }).catch(e => console.error('发送审核通知邮件失败:', e));
+    // 审核通过时发送邮件通知（仅当本次操作是从 pending→active，避免与超时自动通过重复发信）
+    if (status === 'active' && oldStatus === 'pending') {
+      sendApprovalEmail(teacher);
     }
 
     // 重置密码时发送邮件通知

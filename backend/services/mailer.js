@@ -66,6 +66,29 @@ function sendExpiryReminder(teacher, daysLeft) {
   }).catch(e => console.error('发送过期提醒邮件失败:', e));
 }
 
+// ========== 注册审核通过邮件（管理员手动审核与超时自动通过共用） ==========
+function sendApprovalEmail(teacher) {
+  if (!teacher || teacher.source !== 'email' || !teacher.email || !transporter) return;
+  const loginUrl = `${SITE_URL}/login`;
+  transporter.sendMail({
+    from: SMTP_FROM,
+    to: teacher.email,
+    subject: '课表侠 - 注册审核通过',
+    html: `<div style="max-width:480px;margin:0 auto;font-family:sans-serif;">
+      <h2 style="color:#667eea;">课表侠</h2>
+      <p>您好，<strong>${teacher.name}</strong>：</p>
+      <p>您在课表侠的注册申请已通过审核。</p>
+      <p>您现在可以使用注册时填写的邮箱或用户名登录，开始管理您的课程。</p>
+      <p style="text-align:center;margin:24px 0;">
+        <a href="${loginUrl}" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往登录</a>
+      </p>
+      <p style="color:#999;font-size:12px;">登录地址：${loginUrl}</p>
+    </div>`
+  }).then(() => {
+    console.log(`📧 已发送注册审核通过邮件到 ${teacher.email}`);
+  }).catch(e => console.error('发送审核通知邮件失败:', e));
+}
+
 function checkExpiringAccounts() {
   try {
     const rows = db.prepare(
@@ -103,4 +126,34 @@ function checkExpiringAccounts() {
   }
 }
 
-module.exports = { transporter, SMTP_FROM, SITE_URL, sendExpiryReminder, checkExpiringAccounts };
+// ========== 注册申请超时自动通过 ==========
+// 用条件 UPDATE (WHERE status='pending') 保证幂等：只有自己把 pending→active 的那一次 changes>0，才发邮件
+function checkPendingRegistrations() {
+  const seconds = parseInt(process.env.AUTO_APPROVE_SECONDS || '60', 10);
+  if (isNaN(seconds) || seconds <= 0) return; // 0 / 负数 / 非法值 = 禁用
+
+  try {
+    // created_at 由 DEFAULT CURRENT_TIMESTAMP 生成（UTC 'YYYY-MM-DD HH:MM:SS'），
+    // 与 datetime('now', ?) 同格式同时区，字符串比较即时间比较，无需 JS 侧 Date 换算。
+    const rows = db.prepare(
+      `SELECT id, name, email, source FROM teachers
+       WHERE status = 'pending' AND source = 'email'
+         AND created_at IS NOT NULL
+         AND datetime('now', ?) >= created_at`
+    ).all('-' + seconds + ' seconds');
+
+    for (const teacher of rows) {
+      const info = db.prepare(
+        `UPDATE teachers SET status = 'active' WHERE id = ? AND status = 'pending'`
+      ).run(teacher.id);
+      if (info.changes > 0) {
+        console.log(`⚡ 注册申请超时自动通过: ${teacher.name} <${teacher.email}>`);
+        sendApprovalEmail(teacher);
+      }
+    }
+  } catch (e) {
+    console.error('自动通过注册申请失败:', e);
+  }
+}
+
+module.exports = { transporter, SMTP_FROM, SITE_URL, sendExpiryReminder, checkExpiringAccounts, sendApprovalEmail, checkPendingRegistrations };
