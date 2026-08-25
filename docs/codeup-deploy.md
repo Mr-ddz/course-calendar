@@ -10,7 +10,7 @@
                                       │  SSH 执行
                                       ▼
                                /root/course-calendar（git clone 部署目录）
-                                git pull → 前端构建 → 后端装依赖 → pm2 restart
+                                git pull（develop 分支）→ 前端构建 → 后端装依赖 → pm2 restart
                                       │
                               数据库：复用 /root/backend/data/schedule.db（DB_DIR 指向，git pull 永不触碰）
 ```
@@ -22,7 +22,7 @@
 | `scripts/deploy.sh` | 每次发布执行的部署脚本（流水线 SSH 任务调用） |
 | `scripts/setup-server.sh` | 服务器一次性改造脚本 |
 | `docs/codeup-deploy.md` | 本手册 |
-| `git remote add codeup` | 本地已添加 Codeup 远端（`git push codeup main` 上传） |
+| `git remote add codeup` | 本地已添加 Codeup 远端（`git push codeup develop` 上传） |
 
 ## 二、服务器一次性改造（只需一次，约 10 分钟）
 
@@ -34,7 +34,7 @@
    ```
 3. 首次 git clone 时提示输入 **Codeup 用户名 + 访问令牌**（在 Codeup → 个人设置 → 访问令牌 里生成），
    输入一次后自动保存，后续 `git pull` 免输。
-4. 脚本会完成：npm 镜像 → 克隆 → 构建验证 → 复用现有数据库 → 切换 pm2。
+4. 脚本会完成：npm 镜像 → 克隆 → 切到 develop → 构建验证 → 复用现有数据库 → 切换 pm2。
 5. 验证：
    ```bash
    curl http://localhost:3002/api/holidays/2026   # 正常返回 JSON
@@ -48,7 +48,7 @@
 ## 三、云效流水线配置（在阿里云控制台操作）
 
 1. 打开 Codeup 仓库页 → 顶部「**流水线**」标签 → 新建流水线（或 云效控制台 → 流水线 → 新建）。
-2. 流水线源：选择 **Codeup** → 仓库 `course-calendar` → 分支 `main`。
+2. 流水线源：选择 **Codeup** → 仓库 `course-calendar` → 分支 `develop`。
 3. **触发设置**：只保留「手动运行」，关闭代码提交自动触发。
 4. 新建阶段 → 添加任务 → 选「**SSH 命令执行**」（或「主机部署」+ Shell 命令）。
 5. 配置主机连接（首次会引导）：
@@ -62,13 +62,13 @@
    ```bash
    bash /root/course-calendar/scripts/deploy.sh
    ```
-7. 保存。以后在流水线页点「**运行**」→ 选 main → 运行，即完成一次发布。
+7. 保存。以后在流水线页点「**运行**」→ 选 develop → 运行，即完成一次发布。
 
 ## 四、日常发布流程（一键）
 
 ```bash
-# 本地提交并推送到 Codeup
-git push codeup main
+# 本地提交并推送到 Codeup（develop 分支）
+git push codeup develop
 ```
 然后在 Codeup 仓库页 → 流水线 → 点「运行」。或直接在服务器上手动发布：
 ```bash
@@ -78,7 +78,7 @@ bash /root/course-calendar/scripts/deploy.sh
 ## 五、常见问题
 
 - **npm install 慢**：setup-server.sh 已配置 npmmirror 镜像；若仍慢，检查 `npm config get registry`。
-- **git pull 失败（本地有改动）**：服务器部署目录不要手动改文件；若有残留改动，`cd /root/course-calendar && git reset --hard origin/main` 后重试。
+- **git pull 失败（本地有改动）**：服务器部署目录不要手动改文件；若有残留改动，`cd /root/course-calendar && git reset --hard origin/develop` 后重试。
 - **pm2 重启后数据库环境变量丢失**：不要用 `pm2 restart --update-env`（会用当前 shell 环境覆盖，丢失 DB_DIR）；直接用 `pm2 restart course-calendar`。
 - **Nginx 反代**：Nginx 只反代端口 3002，与代码路径无关，无需修改。
 - **服务器用户名不是 root**：所有路径、pm2、脚本均按 root 编写；若用其他用户，需相应调整 APP_DIR 与 sudo。
