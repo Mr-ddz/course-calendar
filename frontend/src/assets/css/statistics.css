@@ -93,6 +93,12 @@
 .stat-card--success .stat-card-value { color: #b7eb8f; }
 .stat-card--warning .stat-card-value { color: #ffe58f; }
 .stat-card--info .stat-card-value { color: #ffd700; }
+.stat-card--done .stat-card-value { color: #7ed0a5; }
+
+/* 第二行卡片定位：已上课程数(col1)、已上课时长(col2)、预存余额(col3) */
+.stats-cards .stat-card:nth-child(5) { grid-column: 1; grid-row: 2; }
+.stats-cards .stat-card:nth-child(6) { grid-column: 2; grid-row: 2; }
+.stats-cards .stat-card:nth-child(7) { grid-column: 3; grid-row: 2; }
 
 /* 周期明细表 */
 .stats-chart {
@@ -139,5 +145,7 @@
 
 @media (max-width: 640px) {
   .stats-cards { grid-template-columns: repeat(2, 1fr); }
+  /* 移动端取消第二行强制定位，让卡片按 2 列自然排布 */
+  .stats-cards .stat-card:nth-child(n+5) { grid-column: auto; grid-row: auto; }
   .stats-period { flex-wrap: wrap; gap: 8px; }
 }

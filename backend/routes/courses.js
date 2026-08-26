@@ -549,6 +549,8 @@ router.get('/api/courses/statistics', (req, res) => {
       SELECT COUNT(*) as total_courses,
              SUM(${durationExpr}) / 60.0 as total_hours,
              SUM(c.hourly_fee * ${durationExpr} / 60.0) as total_fee,
+             SUM(CASE WHEN c.attended = 1 THEN 1 ELSE 0 END) as total_attended_courses,
+             SUM(CASE WHEN c.attended = 1 THEN ${durationExpr} ELSE 0 END) / 60.0 as total_attended_hours,
              SUM(CASE WHEN c.attended = 1 THEN c.hourly_fee * ${durationExpr} / 60.0 ELSE 0 END) as total_attended_fee
       FROM courses c
       WHERE 1=1 ${teacherCondition} ${dateWhere}
