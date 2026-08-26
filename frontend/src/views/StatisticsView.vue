@@ -35,6 +35,14 @@
           <div class="stat-card-value">¥{{ (statsData.totals?.total_fee || 0).toFixed(0) }}</div>
           <div class="stat-card-label">应收课时费</div>
         </div>
+        <div class="stat-card stat-card--done">
+          <div class="stat-card-value">{{ statsData.totals?.total_attended_courses || 0 }}</div>
+          <div class="stat-card-label">已上课程数</div>
+        </div>
+        <div class="stat-card stat-card--done">
+          <div class="stat-card-value">{{ formatHours(statsData.totals?.total_attended_hours) }}</div>
+          <div class="stat-card-label">已上课时长</div>
+        </div>
         <div class="stat-card stat-card--info">
           <div class="stat-card-value">¥{{ (statsData.totals?.total_prepaid || 0).toFixed(0) }}</div>
           <div class="stat-card-label">预存余额</div>
@@ -221,10 +229,11 @@ function getGroupBy(p) {
   return 'month'
 }
 
-// 周期切换时：更新日期范围，不调接口
+// 周期切换时：更新日期范围并直接触发搜索（只改日期范围，其它筛选条件不变）
 watch(period, (val) => {
   if (!val) return // 用户手动改了日期，不做任何事
   searchDateRange.value = getPeriodRange(val)
+  doSearch()
 })
 
 // ===== 搜索（统一入口：点击搜索按钮时调用） =====

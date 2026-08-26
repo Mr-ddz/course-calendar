@@ -200,7 +200,7 @@
             :disabled-date="disableEndDate"
           />
         </el-form-item>
-        <el-form-item label="签到" label-for="course_attended">
+        <el-form-item v-if="isEditing" label="签到" label-for="course_attended">
           <el-switch
             id="course_attended"
             v-model="courseForm.attended"
