@@ -23,25 +23,25 @@
           <div class="stat-card-value">{{ statsData.totals?.total_courses || 0 }}</div>
           <div class="stat-card-label">总课程数</div>
         </div>
+        <div class="stat-card stat-card--done">
+          <div class="stat-card-value">{{ statsData.totals?.total_attended_courses || 0 }}</div>
+          <div class="stat-card-label">已上课程数</div>
+        </div>
         <div class="stat-card stat-card--primary">
           <div class="stat-card-value">{{ formatHours(statsData.totals?.total_hours) }}</div>
-          <div class="stat-card-label">上课时长</div>
+          <div class="stat-card-label">应上课时长</div>
         </div>
-        <div class="stat-card stat-card--success">
-          <div class="stat-card-value">¥{{ (statsData.totals?.total_attended_fee || 0).toFixed(0) }}</div>
-          <div class="stat-card-label">实收课时费</div>
+        <div class="stat-card stat-card--done">
+          <div class="stat-card-value">{{ formatHours(statsData.totals?.total_attended_hours) }}</div>
+          <div class="stat-card-label">已上课时长</div>
         </div>
         <div class="stat-card stat-card--warning">
           <div class="stat-card-value">¥{{ (statsData.totals?.total_fee || 0).toFixed(0) }}</div>
           <div class="stat-card-label">应收课时费</div>
         </div>
-        <div class="stat-card stat-card--done">
-          <div class="stat-card-value">{{ statsData.totals?.total_attended_courses || 0 }}</div>
-          <div class="stat-card-label">已上课程数</div>
-        </div>
-        <div class="stat-card stat-card--done">
-          <div class="stat-card-value">{{ formatHours(statsData.totals?.total_attended_hours) }}</div>
-          <div class="stat-card-label">已上课时长</div>
+        <div class="stat-card stat-card--success">
+          <div class="stat-card-value">¥{{ (statsData.totals?.total_attended_fee || 0).toFixed(0) }}</div>
+          <div class="stat-card-label">实收课时费</div>
         </div>
         <div class="stat-card stat-card--info">
           <div class="stat-card-value">¥{{ (statsData.totals?.total_prepaid || 0).toFixed(0) }}</div>
