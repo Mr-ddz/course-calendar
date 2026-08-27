@@ -31,7 +31,7 @@
         </el-table-column>
         <el-table-column label="申请时间" width="160">
           <template #default="{ row }">
-            {{ row.created_at || '—' }}
+            {{ fmtUtc(row.created_at) || '—' }}
           </template>
         </el-table-column>
         <el-table-column label="来源" width="100">
@@ -189,6 +189,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminGetTeachers, adminAddTeacher, adminUpdateTeacher, adminDeleteTeacher } from '../api/index.js'
+import { fmtUtc } from '../utils/datetime.js'
 
 const router = useRouter()
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')

@@ -164,7 +164,7 @@
         <el-table :data="transactionsData.transactions || []" size="small" style="width:100%" empty-text="暂无流水记录">
           <el-table-column label="时间" min-width="140">
             <template #default="{ row }">
-              {{ dayjs(row.created_at).format('MM-DD HH:mm') }}
+              {{ fmtUtc(row.created_at, 'MM-DD HH:mm:ss') }}
             </template>
           </el-table-column>
           <el-table-column label="类型" min-width="80">
@@ -231,6 +231,7 @@ import dayjs from 'dayjs'
 import * as XLSX from 'xlsx'
 import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi, getTeachers } from '../api/index.js'
 import { saveFile } from '../utils/saveFile.js'
+import { fmtUtc } from '../utils/datetime.js'
 
 const gradeOptions = [
   { id: 1, name: '一年级' }, { id: 2, name: '二年级' }, { id: 3, name: '三年级' },
@@ -502,7 +503,7 @@ async function exportTransactions(row) {
       if (!transactions.length) return null
       exportedCount = transactions.length
       const data = transactions.map(t => ({
-        '时间': dayjs(t.created_at).format('YYYY-MM-DD HH:mm'),
+        '时间': fmtUtc(t.created_at),
         '类型': txTypeLabel(t.type),
         '金额': t.amount,
         '余额': t.balance_after,
