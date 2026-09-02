@@ -3,6 +3,7 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+*.bak
 .DS_Store
 .claude/
 *.tar.gz

@@ -32,9 +32,11 @@ router.post('/api/register', (req, res) => {
     // 检查用户名是否已存在
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const finalRole = role === 'manager' ? 'manager' : 'teacher';
+    // 新注册用户默认 1 个月免费体验期（注册时刻起算），过期后由现有流程接管（提醒/保留15天/清理）
+    const trialExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
     db.prepare(
-      `INSERT INTO teachers (name, password, email, source, status, role) VALUES (?, ?, ?, 'email', 'pending', ?)`
-    ).run(name, hash, email, finalRole);
+      `INSERT INTO teachers (name, password, email, source, status, role, expires_at) VALUES (?, ?, ?, 'email', 'pending', ?, ?)`
+    ).run(name, hash, email, finalRole, trialExpiresAt);
 
     // 给系统邮箱发送新用户注册通知
     if (transporter) {

@@ -59,9 +59,34 @@
 }
 
 .students-count {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-size: 13px;
-  opacity: 0.85;
   padding-bottom: 4px;
+}
+
+.students-count .students-count-text {
+  opacity: 0.85;
+}
+
+/* 预交余额 + 剩余课时 汇总（添加学生按钮左侧） */
+.students-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+  font-size: 13px;
+  border-radius: 16px;
+  padding: 4px 14px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.students-summary strong {
+  color: #ffd666;
+  font-weight: 700;
 }
 
 .students-table-wrapper {

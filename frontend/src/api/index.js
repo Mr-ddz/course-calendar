@@ -144,6 +144,9 @@ export function adminDeleteTeacher(id) {
 export function getStudents(params) {
   return api.get('/students', { params })
 }
+export function getStudentsSummary(params) {
+  return api.get('/students/summary', { params })
+}
 export function createStudent(data) {
   return api.post('/students', data)
 }

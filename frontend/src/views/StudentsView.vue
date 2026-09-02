@@ -25,7 +25,11 @@
         </el-form>
       </div>
       <div class="students-count">
-        <span>共 {{ total }} 位学生</span>
+        <span class="students-count-text">共 {{ total }} 位学生</span>
+        <div class="students-summary">
+          <span class="summary-item">预交余额 <strong>¥{{ summary.prepaid_balance.toFixed(0) }}</strong></span>
+          <span class="summary-item">剩余课时 <strong>{{ summary.remaining_hours.toFixed(1) }}</strong> 小时</span>
+        </div>
       </div>
     </header>
 
@@ -229,7 +233,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import * as XLSX from 'xlsx'
-import { getStudents, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi, getTeachers } from '../api/index.js'
+import { getStudents, getStudentsSummary, createStudent, updateStudent, rechargeStudent, getStudentTransactions, deleteStudent as deleteStudentApi, getTeachers } from '../api/index.js'
 import { saveFile } from '../utils/saveFile.js'
 import { fmtUtc } from '../utils/datetime.js'
 
@@ -247,6 +251,9 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 
+// 学生汇总（预交余额总额 + 剩余课时）
+const summary = reactive({ prepaid_balance: 0, remaining_hours: 0 })
+
 // 教师筛选
 const teacherInfo = JSON.parse(localStorage.getItem('teacher') || '{}')
 const teacherRole = teacherInfo.role || 'teacher'
@@ -260,6 +267,19 @@ async function loadTeacherOptions() {
     const res = await getTeachers()
     teacherOptions.value = res.data.data || []
   } catch {}
+}
+
+// 学生汇总（跟随当前筛选条件，独立加载不影响列表）
+async function loadSummary() {
+  const params = {}
+  if (searchName.value) params.name = searchName.value
+  if (filterTeacherId.value) params.teacher_id = filterTeacherId.value
+  try {
+    const res = await getStudentsSummary(params)
+    const d = res.data.data || {}
+    summary.prepaid_balance = Number(d.prepaid_balance || 0)
+    summary.remaining_hours = Number(d.remaining_hours || 0)
+  } catch { /* 汇总失败不影响列表 */ }
 }
 
 // 列表
@@ -277,6 +297,7 @@ async function loadStudents() {
   } finally {
     loading.value = false
   }
+  loadSummary()
 }
 
 function doSearch() { currentPage.value = 1; loadStudents() }

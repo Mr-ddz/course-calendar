@@ -39,6 +39,41 @@ router.get('/api/students', (req, res) => {
   }
 });
 
+// 学生汇总（预交余额总额 + 剩余课时），与列表使用相同权限与筛选条件，统计全部而非当前页
+router.get('/api/students/summary', (req, res) => {
+  try {
+    const { name, teacher_id } = req.query;
+    const conditions = [];
+    const params = [];
+
+    const stuAccess = accessibleClause(req.teacher, 's');
+    conditions.push(stuAccess.sql);
+    params.push(...stuAccess.params);
+    if (name) { conditions.push("s.name LIKE ?"); params.push(`%${name}%`); }
+    const stf = resolveTeacherFilter(teacher_id, "s");
+    if (stf) { conditions.push(stf.sql); params.push(...stf.params); }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // 剩余课时：预交模式下余额 ÷ 课时单价（只统计单价>0的预交学生）
+    const row = db.prepare(`
+      SELECT COUNT(*) as student_count,
+        COALESCE(SUM(s.prepaid_balance), 0) as total_balance,
+        COALESCE(SUM(CASE WHEN s.payment_mode = 'prepaid' AND s.hourly_fee > 0 THEN s.prepaid_balance / s.hourly_fee ELSE 0 END), 0) as total_hours
+      FROM students s ${whereClause}
+    `).get(...params);
+
+    res.json({ data: {
+      student_count: row.student_count,
+      prepaid_balance: Math.round(row.total_balance),
+      remaining_hours: Math.round(row.total_hours * 10) / 10
+    } });
+  } catch (err) {
+    console.error('获取学生汇总失败:', err);
+    res.status(500).json({ error: '获取学生汇总失败' });
+  }
+});
+
 // 创建学生
 router.post('/api/students', (req, res) => {
   try {

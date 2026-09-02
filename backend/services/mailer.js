@@ -66,10 +66,22 @@ function sendExpiryReminder(teacher, daysLeft) {
   }).catch(e => console.error('发送过期提醒邮件失败:', e));
 }
 
+// 日期格式化：ISO 时间 → YYYY-MM-DD（用于邮件展示）
+function formatDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toISOString().split('T')[0];
+}
+
 // ========== 注册审核通过邮件（管理员手动审核与超时自动通过共用） ==========
 function sendApprovalEmail(teacher) {
   if (!teacher || teacher.source !== 'email' || !teacher.email || !transporter) return;
   const loginUrl = `${SITE_URL}/login`;
+  // 新账号 1 个月免费体验期说明（有具体到期时间则一并展示）
+  const trialDate = teacher.expires_at ? formatDate(teacher.expires_at) : '';
+  const trialNotice = trialDate
+    ? `您的新账号享有 <strong style="color:#e6a23c;">1 个月</strong> 免费体验期（至 <strong style="color:#e6a23c;">${trialDate}</strong>）。`
+    : `您的新账号享有 <strong style="color:#e6a23c;">1 个月</strong> 免费体验期。`;
   transporter.sendMail({
     from: SMTP_FROM,
     to: teacher.email,
@@ -79,6 +91,8 @@ function sendApprovalEmail(teacher) {
       <p>您好，<strong>${teacher.name}</strong>：</p>
       <p>您在课表侠的注册申请已通过审核。</p>
       <p>您现在可以使用注册时填写的邮箱或用户名登录，开始管理您的课程。</p>
+      <p style="margin-top:16px;">${trialNotice}</p>
+      <p>体验期到期后，您的数据将保留 <strong style="color:#e6a23c;">15 天</strong>，逾期将全部删除。如需继续使用，请及时联系管理员续费。</p>
       <p style="text-align:center;margin:24px 0;">
         <a href="${loginUrl}" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;border-radius:6px;">前往登录</a>
       </p>
@@ -136,7 +150,7 @@ function checkPendingRegistrations() {
     // created_at 由 DEFAULT CURRENT_TIMESTAMP 生成（UTC 'YYYY-MM-DD HH:MM:SS'），
     // 与 datetime('now', ?) 同格式同时区，字符串比较即时间比较，无需 JS 侧 Date 换算。
     const rows = db.prepare(
-      `SELECT id, name, email, source FROM teachers
+      `SELECT id, name, email, source, expires_at FROM teachers
        WHERE status = 'pending' AND source = 'email'
          AND created_at IS NOT NULL
          AND datetime('now', ?) >= created_at`
@@ -156,4 +170,33 @@ function checkPendingRegistrations() {
   }
 }
 
-module.exports = { transporter, SMTP_FROM, SITE_URL, sendExpiryReminder, checkExpiringAccounts, sendApprovalEmail, checkPendingRegistrations };
+// ========== 过期账号数据清理（数据保留 15 天，逾期删除） ==========
+// 过期次日为第 1 天，共保留 15 天 → 过期满 16 天起删除。
+// 只清理普通教师账号：跳过超级管理员(id=1)与 manager（manager 名下可能有教师，交管理员手动处理）。
+// 删除行为与「管理员删除教师」一致：courses + students + teachers 整行。
+function purgeExpiredAccounts() {
+  try {
+    const rows = db.prepare(
+      `SELECT id, name, email, expires_at, role FROM teachers
+       WHERE expires_at IS NOT NULL AND expires_at != '' AND id != 1`
+    ).all();
+    const now = Date.now();
+    let purged = 0;
+    for (const teacher of rows) {
+      if (teacher.role === 'manager') continue;
+      const expire = new Date(teacher.expires_at);
+      if (isNaN(expire)) continue;
+      if (now < expire.getTime() + 16 * 86400000) continue; // 保留期未结束
+      db.prepare(`DELETE FROM courses WHERE teacher_id = ?`).run(teacher.id);
+      db.prepare(`DELETE FROM students WHERE teacher_id = ?`).run(teacher.id);
+      db.prepare(`DELETE FROM teachers WHERE id = ?`).run(teacher.id);
+      console.log(`🗑️ 已删除过期超15天的账号数据: ${teacher.name} <${teacher.email || '无邮箱'}> (id=${teacher.id})`);
+      purged++;
+    }
+    if (purged > 0) console.log(`🗑️ 本次共清理 ${purged} 个过期账号`);
+  } catch (e) {
+    console.error('清理过期账号数据失败:', e);
+  }
+}
+
+module.exports = { transporter, SMTP_FROM, SITE_URL, sendExpiryReminder, checkExpiringAccounts, sendApprovalEmail, checkPendingRegistrations, purgeExpiredAccounts };

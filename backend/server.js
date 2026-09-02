@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const db = require('./database');
-const { checkExpiringAccounts, checkPendingRegistrations } = require('./services/mailer');
+const { checkExpiringAccounts, checkPendingRegistrations, purgeExpiredAccounts } = require('./services/mailer');
 const { preloadHolidays } = require('./services/holidays');
 const { authMiddleware, rateLimiter } = require('./services/middleware');
 
@@ -58,6 +58,10 @@ try {
 // 启动即检查一次，之后每 6 小时检查一次
 checkExpiringAccounts();
 setInterval(checkExpiringAccounts, 6 * 3600 * 1000);
+
+// ========== 过期账号数据清理（数据保留 15 天后删除，每 6 小时扫一次） ==========
+purgeExpiredAccounts();
+setInterval(purgeExpiredAccounts, 6 * 3600 * 1000);
 
 // ========== 注册申请超时自动通过（AUTO_APPROVE_SECONDS=0/负数 即禁用） ==========
 const AUTO_APPROVE_SECONDS = parseInt(process.env.AUTO_APPROVE_SECONDS || '60', 10);

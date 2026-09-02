@@ -152,7 +152,7 @@ router.put('/api/admin/teachers/:id', (req, res) => {
     if (updates.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
     params.push(id);
     db.prepare(`UPDATE teachers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-    const teacher = db.prepare(`SELECT id, name, email, source, status, role FROM teachers WHERE id = ?`).get(id);
+    const teacher = db.prepare(`SELECT id, name, email, source, status, role, expires_at FROM teachers WHERE id = ?`).get(id);
 
     // 审核通过时发送邮件通知（仅当本次操作是从 pending→active，避免与超时自动通过重复发信）
     if (status === 'active' && oldStatus === 'pending') {
